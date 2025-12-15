@@ -1,5 +1,6 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { PinoLoggerService } from './logger.service';
 
 /**
  * Database Validation Service
@@ -8,9 +9,11 @@ import { DataSource } from 'typeorm';
  */
 @Injectable()
 export class DbValidationService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(DbValidationService.name);
+  private readonly logger = new PinoLoggerService();
 
-  constructor(private dataSource: DataSource) {}
+  constructor(private dataSource: DataSource) {
+    this.logger.setContext(DbValidationService.name);
+  }
 
   async onApplicationBootstrap(): Promise<void> {
     await this.validateDatabaseConnection();
@@ -33,11 +36,16 @@ export class DbValidationService implements OnApplicationBootstrap {
       const result = await this.dataSource.query('SELECT NOW()');
       this.logger.log(
         `✅ PostgreSQL connection verified. Server time: ${result[0].now}`,
+        {
+          connected: true,
+          serverTime: result[0].now,
+        },
       );
     } catch (error) {
       this.logger.error(
         `❌ Database connection failed: ${error.message}`,
-        error.stack,
+        error,
+        DbValidationService.name,
       );
       throw new Error(
         `Database connection failed. Ensure PostgreSQL is running and credentials are correct.\n${error.message}`,
@@ -52,14 +60,21 @@ export class DbValidationService implements OnApplicationBootstrap {
     const driver = this.dataSource.driver.options.type;
 
     if (driver !== 'postgres') {
+      const errorMsg = `❌ CRITICAL: Database type is "${driver}", not "postgres".`;
+      this.logger.error(errorMsg, {
+        expectedType: 'postgres',
+        actualType: driver,
+      });
       throw new Error(
-        `❌ CRITICAL: Database type is "${driver}", not "postgres".\n` +
-        `Check src/config/database.config.ts - must have type: 'postgres'\n` +
-        `Current configuration: ${JSON.stringify(this.dataSource.driver.options, null, 2)}`,
+        `${errorMsg}\n` +
+        `Check src/config/database.config.ts - must have type: 'postgres'`,
       );
     }
 
-    this.logger.log(`✅ Database type verified: PostgreSQL (${driver})`);
+    this.logger.log(`✅ Database type verified: PostgreSQL (${driver})`, {
+      databaseType: driver,
+      verified: true,
+    });
   }
 
   /**
@@ -76,18 +91,20 @@ export class DbValidationService implements OnApplicationBootstrap {
       if (extensionCheck.length === 0) {
         this.logger.warn(
           `⚠️ uuid-ossp extension not found. Installing...`,
+          { extension: 'uuid-ossp', action: 'installing' },
         );
         await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
-        this.logger.log(`✅ uuid-ossp extension installed`);
+        this.logger.log(`✅ uuid-ossp extension installed`, { extension: 'uuid-ossp', installed: true });
       } else {
-        this.logger.log(`✅ uuid-ossp extension already installed`);
+        this.logger.log(`✅ uuid-ossp extension already installed`, { extension: 'uuid-ossp', preexisting: true });
       }
 
       // Verify enum type support (enums should work out of box in Postgres)
-      this.logger.log(`✅ PostgreSQL enum support verified`);
+      this.logger.log(`✅ PostgreSQL enum support verified`, { enumSupport: true });
     } catch (error) {
       this.logger.warn(
         `⚠️ Could not verify uuid-ossp extension: ${error.message}`,
+        { extension: 'uuid-ossp', error: error.message },
       );
       // Don't throw - uuid-ossp is optional if not using uuid-ossp generation
     }

@@ -6,14 +6,19 @@ import * as bcrypt from 'bcryptjs';
 import { User } from '../../materials/entities/user.entity';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
+import { PinoLoggerService } from '../../../common/services/logger.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new PinoLoggerService();
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private jwtService: JwtService,
-  ) {}
+  ) {
+    this.logger.setContext(AuthService.name);
+  }
 
   /**
    * Register a new user with email/phone and password
@@ -24,6 +29,10 @@ export class AuthService {
 
     // Validate at least one contact method provided
     if (!email && !phoneNumber) {
+      this.logger.warn('Register attempt without email or phone', {
+        hasEmail: !!email,
+        hasPhone: !!phoneNumber,
+      });
       throw new BadRequestException('Either email or phone number is required');
     }
 
@@ -36,6 +45,10 @@ export class AuthService {
     });
 
     if (existingUser) {
+      this.logger.warn('Register attempt with existing user', {
+        email: email?.toLowerCase(),
+        phoneNumber,
+      });
       throw new BadRequestException('User already exists with this email or phone number');
     }
 
@@ -57,6 +70,12 @@ export class AuthService {
 
     // Generate JWT token
     const token = this.jwtService.sign({ userId: user.id });
+
+    this.logger.log('User registered successfully', {
+      userId: user.id,
+      email: user.email,
+      method: email ? 'email' : 'phone',
+    });
 
     return {
       success: true,
@@ -87,6 +106,10 @@ export class AuthService {
     });
 
     if (!user) {
+      this.logger.warn('Login attempt with non-existent user', {
+        attemptedCredential: emailOrPhone,
+        isEmail: emailOrPhone.includes('@'),
+      });
       throw new BadRequestException('User not found');
     }
 
@@ -94,6 +117,10 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      this.logger.warn('Login attempt with invalid password', {
+        userId: user.id,
+        email: user.email,
+      });
       throw new BadRequestException('Invalid password');
     }
 
@@ -103,6 +130,13 @@ export class AuthService {
 
     // Generate JWT token
     const token = this.jwtService.sign({ userId: user.id });
+
+    this.logger.log('User logged in successfully', {
+      userId: user.id,
+      email: user.email,
+      method: emailOrPhone.includes('@') ? 'email' : 'phone',
+      lastLogin: user.lastLogin,
+    });
 
     return {
       success: true,
