@@ -19,13 +19,7 @@ interface ErrorResponse {
 }
 
 /**
- * Global Exception Filter
- * Catches all exceptions and returns consistent error responses
- * Handles:
- * - HTTP exceptions (400, 401, 403, 404, etc)
- * - Database errors (TypeORM)
- * - Validation errors
- * - Unexpected errors
+ * Global exception filter for consistent error responses
  */
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -41,7 +35,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let message: string | string[] = 'Internal server error';
     let errorType = 'InternalServerError';
 
-    // Handle HTTP Exceptions
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
@@ -58,23 +51,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `HTTP ${status} - ${request.method} ${request.path}: ${message}`,
       );
     }
-    // Handle TypeORM Database Errors
     else if (exception instanceof TypeORMError || exception instanceof Error) {
       const error = exception as any;
 
-      // Specific TypeORM error handling
       if (error.code === '23505') {
-        // Unique constraint violation
         status = HttpStatus.CONFLICT;
         message = 'Duplicate entry: This record already exists';
         errorType = 'DuplicateEntry';
       } else if (error.code === '23503') {
-        // Foreign key constraint violation
         status = HttpStatus.BAD_REQUEST;
         message = 'Invalid reference: Related record not found';
         errorType = 'InvalidReference';
       } else if (error.code === '42P01') {
-        // Table does not exist
         status = HttpStatus.INTERNAL_SERVER_ERROR;
         message = 'Database table not found';
         errorType = 'DatabaseError';
@@ -85,14 +73,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         errorType = 'QueryError';
         this.logger.error(`Query failed: ${error.message}`);
       } else {
-        // Generic database error
         status = HttpStatus.INTERNAL_SERVER_ERROR;
         message = 'Database operation failed';
         errorType = 'DatabaseError';
         this.logger.error(`Unhandled database error: ${error.message}`);
       }
     }
-    // Handle unexpected errors
     else {
       this.logger.error(
         `Unhandled exception: ${exception instanceof Error ? exception.message : JSON.stringify(exception)}`,

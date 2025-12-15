@@ -6,6 +6,7 @@ import { AuthService } from './service/auth.service';
 import { AuthController } from './controller/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../materials/entities/user.entity';
+import { LoggerProviderModule } from '../../common/modules/logger.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { User } from '../materials/entities/user.entity';
       signOptions: { expiresIn: '7d' },
     }),
     PassportModule,
+    LoggerProviderModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

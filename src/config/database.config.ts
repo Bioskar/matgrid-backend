@@ -8,53 +8,47 @@ import { ConfigService } from '@nestjs/config';
  * Used in app.module.ts with TypeOrmModule.forRootAsync()
  */
 export function getDatabaseConfig(configService: ConfigService): TypeOrmModuleOptions {
+  const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
+  
   return {
-    // ✅ CRITICAL: Explicitly set type to 'postgres' (NOT 'sqlite', 'pg', or from env)
     type: 'postgres',
 
-    // ✅ PostgreSQL connection details from ConfigService (not process.env directly)
     host: configService.get<string>('DB_HOST') || 'localhost',
     port: configService.get<number>('DB_PORT') || 5432,
     username: configService.get<string>('DB_USERNAME') || 'postgres',
     password: configService.get<string>('DB_PASSWORD'),
     database: configService.get<string>('DB_NAME') || 'matgrid',
 
-    // ✅ Entity discovery: Works with both .ts (dev) and .js (production)
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
 
-    // ✅ Auto-sync schema only in development
-    // NEVER use in production - use migrations instead
-    synchronize: configService.get<string>('NODE_ENV') !== 'production',
+    // Auto-sync schema only in development
+    synchronize: nodeEnv !== 'production',
 
-    // ✅ Detailed logging for development
-    logging: configService.get<string>('NODE_ENV') === 'development',
+    logging: nodeEnv === 'production' ? ['error', 'warn'] : ['error'],
+    maxQueryExecutionTime: nodeEnv === 'production' ? 1000 : undefined,
 
-    // ✅ SSL for production databases (e.g., AWS RDS, Azure Database)
-    // In development: ssl: false
-    // In production: set DB_SSL=true and ensure proper certs
     ssl: configService.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
 
-    // ✅ Connection pooling (NestJS + TypeORM defaults are good)
-    // Customize if needed for high-load scenarios
     extra: {
-      max: 20, // Max connections in pool
-      min: 2,  // Min connections
+      max: 20,
+      min: 5,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
     },
 
-    // ✅ Migrations (set up when ready)
+    connectTimeoutMS: 10000,
+    retryAttempts: 3,
+    retryDelay: 3000,
+
     migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
     migrationsTableName: 'migrations',
-    migrationsRun: false, // Set to true if auto-running migrations
+    migrationsRun: false,
 
-    // ✅ Better error messages
     dropSchema: false,
     cache: {
-      duration: 30000, // 30 seconds query caching
+      duration: 30000,
     },
 
-    // ✅ UUID support (your entities use uuid)
     uuidExtension: 'uuid-ossp',
   };
 }
@@ -73,7 +67,8 @@ export const databaseConfig: TypeOrmModuleOptions = {
   database: process.env.DB_NAME || 'matgrid',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: process.env.NODE_ENV !== 'production',
-  logging: process.env.NODE_ENV === 'development',
+  // Errors only in all environments (no query logs)
+  logging: ['error'],
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   uuidExtension: 'uuid-ossp',
 };

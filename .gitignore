@@ -1,11 +1,6 @@
 # NestJS
 node_modules/
 dist/
-.env
-.env.local
-.env.*.local
-.env.*
-.env.example
 # Logs
 logs/
 *.log
@@ -88,11 +83,17 @@ bower_components/
 .env.test.local
 .env.production.local
 .env.*.local
+.env.example
 
 # Database
 *.sqlite
 *.sqlite3
 *.db
+postgres_data/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
 
 # Cache
 .cache/

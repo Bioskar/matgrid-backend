@@ -3,13 +3,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './modules/auth/auth.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { CommonModule } from './common/modules/common.module';
+import { LoggerProviderModule } from './common/modules/logger.module';
 import { getDatabaseConfig } from './config/database.config';
 import { DbValidationService } from './common/services/db-validation.service';
-import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { getPinoHttpConfig } from './config/logger.config';
 
 @Module({
   imports: [
@@ -17,16 +20,17 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // ✅ Use forRootAsync() to ensure ConfigService is available
+    LoggerModule.forRoot(getPinoHttpConfig()),
+    CommonModule,
+    LoggerProviderModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => getDatabaseConfig(configService),
     }),
-    // ✅ Rate limiting: 100 requests per 60 seconds globally
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, // milliseconds
-        limit: 100, // requests per window
+        ttl: 60000,
+        limit: 100,
       },
     ]),
     AuthModule,
@@ -36,7 +40,6 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
   ],
   providers: [
     DbValidationService,
-    // ✅ Register ThrottlerGuard globally for all routes
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
