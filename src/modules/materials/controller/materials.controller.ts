@@ -14,6 +14,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MaterialsService } from '../service/materials.service';
+import { Material } from '../../quotes/entities/material.entity';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CreateQuoteDto } from '../../quotes/dto/create-quote.dto';
 import { AddMaterialDto } from '../dto/add-material.dto';

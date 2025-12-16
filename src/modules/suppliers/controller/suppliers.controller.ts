@@ -7,11 +7,13 @@ import {
   Body,
   UseGuards,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SuppliersService } from '../service/suppliers.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CreateSupplierQuoteDto } from '../dto/create-supplier-quote.dto';
+import { SubmitSupplierQuoteDto } from '../dto/submit-quote.dto';
 
 @ApiTags('Suppliers')
 @ApiBearerAuth('JWT-auth')
@@ -19,6 +21,38 @@ import { CreateSupplierQuoteDto } from '../dto/create-supplier-quote.dto';
 @UseGuards(JwtAuthGuard)
 export class SuppliersController {
   constructor(private suppliersService: SuppliersService) {}
+
+  @Get('requests')
+  @ApiOperation({
+    summary: 'Get incoming quote requests',
+    description: 'View all incoming material requests matching supplier categories'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Incoming requests retrieved successfully'
+  })
+  async getIncomingRequests(@Req() req: any) {
+    const supplierId = req.user.supplierId || req.user.userId;
+    return this.suppliersService.getIncomingRequests(supplierId);
+  }
+
+  @Post('submit-quote')
+  @ApiOperation({
+    summary: 'Submit quote with pricing',
+    description: 'Submit pricing for materials in a quote request'
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Quote submitted successfully'
+  })
+  async submitQuote(@Body() submitQuoteDto: SubmitSupplierQuoteDto, @Req() req: any) {
+    const supplierId = req.user.supplierId || req.user.userId;
+    return this.suppliersService.submitSupplierQuote(
+      supplierId,
+      submitQuoteDto.quoteId,
+      submitQuoteDto.items
+    );
+  }
 
   @Get()
   async getAllSuppliers(@Query() filters: any) {

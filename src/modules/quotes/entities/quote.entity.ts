@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
-import { User } from '../../materials/entities/user.entity';
-import { Material } from '../../materials/entities/material.entity';
+import { User } from '../../auth/entities/user.entity';
+import { Material } from './material.entity';
 
 @Entity('quotes')
 @Index(['userId']) // Index for user's quotes lookup

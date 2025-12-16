@@ -1,24 +1,38 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  OneToOne,
+  JoinColumn,
+} from 'typeorm';
+import { User } from '../../auth/entities/user.entity';
 
 @Entity('suppliers')
-@Index(['isActive']) // Index for filtering active suppliers
-@Index(['rating']) // Index for sorting by rating
-@Index(['name']) // Index for name search
+@Index(['isActive'])
+@Index(['rating'])
+@Index(['name'])
 export class Supplier {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryColumn('uuid')
+  userId: string;
+
+  @OneToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
   @Column({ type: 'varchar' })
   name: string;
 
   @Column({ type: 'varchar', nullable: true })
-  email?: string;
-
-  @Column({ type: 'varchar', nullable: true })
-  phoneNumber?: string;
+  ownerName?: string;
 
   @Column({ type: 'varchar', nullable: true })
   website?: string;
+
+  @Column({ type: 'text', nullable: true })
+  shopAddress?: string;
 
   @Column({ type: 'json', nullable: true })
   address?: {
@@ -30,7 +44,13 @@ export class Supplier {
   };
 
   @Column({ type: 'simple-array', default: '' })
+  materialCategories: string[];
+
+  @Column({ type: 'simple-array', default: '' })
   specialization: string[];
+
+  @Column({ type: 'varchar', default: 'pending' })
+  verificationStatus: 'pending' | 'verified' | 'rejected';
 
   @Column({ type: 'decimal', precision: 2, scale: 1, default: 0 })
   rating: number;

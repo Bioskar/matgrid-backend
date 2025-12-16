@@ -5,13 +5,14 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './service/auth.service';
 import { AuthController } from './controller/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { User } from '../materials/entities/user.entity';
+import { User } from './entities/user.entity';
+import { UserOtp } from './entities/user-otp.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
 import { jwtConfig } from '../../config/jwt.config';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, UserOtp]),
     JwtModule.register({
       secret: jwtConfig.secret,
       signOptions: { expiresIn: '7d' },

@@ -1,9 +1,16 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate, Index } from 'typeorm';
 
+export enum UserRole {
+  CONTRACTOR = 'contractor',
+  SUPPLIER = 'supplier',
+  ADMIN = 'admin'
+}
+
 @Entity('users')
-@Index(['email']) // Index for email lookups during login
-@Index(['phoneNumber']) // Index for phone lookups during login
-@Index(['isActive']) // Index for filtering active users
+@Index(['email'])
+@Index(['phoneNumber'])
+@Index(['isActive'])
+@Index(['userRole'])
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -22,6 +29,16 @@ export class User {
 
   @Column({ type: 'varchar', nullable: true })
   company?: string;
+
+  @Column({ 
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.CONTRACTOR
+  })
+  userRole: UserRole;
+
+  @Column({ type: 'text', nullable: true })
+  profilePhoto?: string;
 
   @Column({ type: 'boolean', default: false })
   isEmailVerified: boolean;

@@ -1,9 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import pino from 'pino';
 import { Supplier } from '../entities/supplier.entity';
+import { User, UserRole } from '../../auth/entities/user.entity';
 import { SupplierQuote } from '../entities/supplier-quote.entity';
-import { Material } from '../../materials/entities/material.entity';
+import { Material } from '../../quotes/entities/material.entity';
 import { Quote } from '../../quotes/entities/quote.entity';
 
 @Injectable()
@@ -11,13 +13,46 @@ export class SuppliersService {
   constructor(
     @InjectRepository(Supplier)
     private supplierRepository: Repository<Supplier>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     @InjectRepository(SupplierQuote)
     private supplierQuoteRepository: Repository<SupplierQuote>,
     @InjectRepository(Material)
     private materialRepository: Repository<Material>,
     @InjectRepository(Quote)
     private quoteRepository: Repository<Quote>,
+    @Inject('PINO_LOGGER') private logger: pino.Logger,
   ) {}
+
+  async getOrCreateSupplier(userId: string): Promise<Supplier> {
+    let supplier = await this.supplierRepository.findOne({
+      where: { userId },
+      relations: ['user'],
+    });
+
+    if (!supplier) {
+      const user = await this.userRepository.findOne({
+        where: { id: userId, userRole: UserRole.SUPPLIER },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found or not a supplier');
+      }
+
+      supplier = this.supplierRepository.create({
+        userId: user.id,
+        name: user.company || user.fullName,
+        ownerName: user.fullName,
+        materialCategories: [],
+        specialization: [],
+      });
+
+      supplier = await this.supplierRepository.save(supplier);
+      supplier.user = user;
+    }
+
+    return supplier;
+  }
 
   /**
    * Search suppliers based on quote materials
@@ -92,7 +127,7 @@ export class SuppliersService {
    * Get supplier details by ID
    */
   async getSupplierDetails(supplierId: string) {
-    const supplier = await this.supplierRepository.findOne({ where: { id: supplierId } });
+    const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
 
     if (!supplier) {
       throw new BadRequestException('Supplier not found');
@@ -110,7 +145,7 @@ export class SuppliersService {
    */
   async createSupplierQuote(quoteId: string, supplierId: string, materialsData: any[]) {
     const quote = await this.quoteRepository.findOne({ where: { id: quoteId } });
-    const supplier = await this.supplierRepository.findOne({ where: { id: supplierId } });
+    const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
 
     if (!quote || !supplier) {
       throw new BadRequestException('Quote or Supplier not found');
@@ -199,6 +234,138 @@ export class SuppliersService {
       success: true,
       bestSupplier: quotes[0],
       allSuppliers: quotes,
+    };
+  }
+
+  /**
+   * Get incoming quote requests for a supplier
+   * Filtered by material categories they supply
+   */
+  async getIncomingRequests(supplierId: string) {
+    const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
+    
+    if (!supplier) {
+      throw new BadRequestException('Supplier not found');
+    }
+
+    // Get quotes with materials matching supplier categories
+    const quotes = await this.quoteRepository
+      .createQueryBuilder('quote')
+      .leftJoinAndSelect('quote.materials', 'material')
+      .where('quote.status = :status', { status: 'open' })
+      .andWhere('material.category IN (:...categories)', { categories: supplier.materialCategories })
+      .orderBy('quote.createdAt', 'DESC')
+      .limit(50)
+      .getMany();
+
+    // Calculate how many materials match for each quote
+    const requestsWithMatches = quotes.map(quote => {
+      const relevantMaterials = quote.materials?.filter(m => 
+        supplier.materialCategories.includes(m.category)
+      ) || [];
+
+      return {
+        id: quote.id,
+        title: quote.title,
+        description: quote.description,
+        clientName: quote.userId,
+        createdAt: quote.createdAt,
+        totalMaterials: quote.materialsCount,
+        relevantMaterials: relevantMaterials.length,
+        materials: relevantMaterials.map(m => ({
+          id: m.id,
+          name: m.name,
+          quantity: m.quantity,
+          unit: m.unit,
+          category: m.category,
+        })),
+        status: quote.status,
+      };
+    }).filter(req => req.relevantMaterials > 0);
+
+    this.logger.info(
+      { supplierId, requestsCount: requestsWithMatches.length },
+      'Fetched incoming requests for supplier'
+    );
+
+    return {
+      success: true,
+      requests: requestsWithMatches,
+      count: requestsWithMatches.length,
+    };
+  }
+
+  /**
+   * Submit supplier quote with pricing for materials
+   */
+  async submitSupplierQuote(supplierId: string, quoteId: string, items: any[]) {
+    const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
+    if (!supplier) {
+      throw new BadRequestException('Supplier not found');
+    }
+
+    const quote = await this.quoteRepository.findOne({ where: { id: quoteId } });
+    if (!quote) {
+      throw new BadRequestException('Quote not found');
+    }
+
+    // Validate all material IDs exist
+    const materialIds = items.map(item => item.materialId);
+    const materials = await this.materialRepository.find({
+      where: { id: In(materialIds), quoteId },
+    });
+
+    if (materials.length !== items.length) {
+      throw new BadRequestException('Some materials not found in quote');
+    }
+
+    // Calculate total quote amount
+    const materialPricing = items.map(item => {
+      const material = materials.find(m => m.id === item.materialId);
+      const totalPrice = item.pricePerUnit * (material?.quantity || 0);
+
+      return {
+        materialId: item.materialId,
+        materialName: material?.name,
+        quantity: material?.quantity,
+        unit: material?.unit,
+        pricePerUnit: item.pricePerUnit,
+        totalPrice,
+        deliveryTime: item.deliveryTime,
+        availability: item.availability,
+      };
+    });
+
+    const totalAmount = materialPricing.reduce((sum, item) => sum + item.totalPrice, 0);
+
+    // Create supplier quote
+    const supplierQuote = this.supplierQuoteRepository.create({
+      quoteId,
+      supplierId,
+      totalCost: totalAmount,
+      materials: materialPricing,
+      status: 'quoted',
+    });
+
+    await this.supplierQuoteRepository.save(supplierQuote);
+
+    this.logger.info(
+      { supplierId, quoteId, totalAmount, itemsCount: items.length },
+      'Supplier quote submitted successfully'
+    );
+
+    return {
+      success: true,
+      message: 'Quote submitted successfully',
+      supplierQuote: {
+        id: supplierQuote.id,
+        quoteId: supplierQuote.quoteId,
+        supplierId: supplierQuote.supplierId,
+        totalAmount,
+        materials: materialPricing,
+        status: supplierQuote.status,
+        createdAt: supplierQuote.createdAt,
+      },
     };
   }
 }

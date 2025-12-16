@@ -8,6 +8,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { ContractorsModule } from './modules/contractors/contractors.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { CommonModule } from './common/modules/common.module';
 import { LoggerProviderModule } from './common/modules/logger.module';
 import { getDatabaseConfig } from './config/database.config';
@@ -37,6 +39,8 @@ import { getPinoHttpConfig } from './config/logger.config';
     MaterialsModule,
     QuotesModule,
     SuppliersModule,
+    ContractorsModule,
+    OrdersModule,
   ],
   providers: [
     DbValidationService,
