@@ -237,9 +237,15 @@ export class AuthService {
     // Send OTP via SMS
     const smsSent = await this.smsService.sendOtp(phoneNumber, otp);
 
-    if (!smsSent && this.smsService.isServiceEnabled()) {
-      this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
-      throw new BadRequestException('Failed to send OTP. Please try again.');
+    if (!smsSent) {
+      if (this.smsService.isServiceEnabled()) {
+        // SMS service is enabled but failed to send
+        this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
+        throw new BadRequestException('Failed to send OTP. Please try again.');
+      } else {
+        // SMS service is disabled (no credentials)
+        this.logger.warn({ phoneNumber, otp }, 'SMS service disabled - OTP not sent (DEV MODE)');
+      }
     }
 
     // Log OTP in development mode only
@@ -254,10 +260,10 @@ export class AuthService {
       success: true,
       message: smsSent 
         ? 'OTP sent to your phone number'
-        : 'OTP generated (SMS disabled in dev mode)',
+        : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       phoneNumber,
       expiresAt,
-      // REMOVE IN PRODUCTION - only for development when SMS is disabled
+      // Only include OTP in dev when SMS is completely disabled (no credentials)
       ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp }),
     };
   }

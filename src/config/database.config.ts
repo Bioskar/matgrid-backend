@@ -43,7 +43,7 @@ export function getDatabaseConfig(configService: ConfigService): TypeOrmModuleOp
 
     migrations: [__dirname + '/../database/migrations/**/*{.ts,.js}'],
     migrationsTableName: 'typeorm_migrations',
-    migrationsRun: nodeEnv === 'production', // Auto-run migrations in production
+    migrationsRun: false, // Disable auto-run migrations for now
 
     dropSchema: false,
     cache: {
