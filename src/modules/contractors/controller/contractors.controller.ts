@@ -20,7 +20,7 @@ import { UpdateProfileDto } from '../dto/update-profile.dto';
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.CONTRACTOR)
-@Controller('api/v1/contractors')
+@Controller('contractors')
 export class ContractorsController {
   constructor(private readonly contractorsService: ContractorsService) {}
 

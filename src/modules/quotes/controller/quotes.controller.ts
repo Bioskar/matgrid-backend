@@ -13,7 +13,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
 @ApiTags('Quotes')
 @ApiBearerAuth('JWT-auth')
-@Controller('api/v1/quotes')
+@Controller('quotes')
 @UseGuards(JwtAuthGuard)
 export class QuotesController {
   constructor(private quotesService: QuotesService) {}

@@ -17,7 +17,7 @@ import { SubmitSupplierQuoteDto } from '../dto/submit-quote.dto';
 
 @ApiTags('Suppliers')
 @ApiBearerAuth('JWT-auth')
-@Controller('api/v1/suppliers')
+@Controller('suppliers')
 @UseGuards(JwtAuthGuard)
 export class SuppliersController {
   constructor(private suppliersService: SuppliersService) {}

@@ -8,15 +8,15 @@ import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-au
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
 @ApiTags('Authentication')
-@Controller('api/v1/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('send-otp')
-  @Throttle({ default: { limit: 3, ttl: 60 } })
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({
     summary: 'Send OTP to phone number',
-    description: 'Send 6-digit OTP for phone verification (contractors/suppliers). Rate limited to 3 requests per minute'
+    description: 'Send 6-digit OTP for phone verification (contractors/suppliers). Rate limited to 3 requests per minute per IP'
   })
   @ApiBody({ type: SendOtpDto })
   @ApiResponse({
@@ -33,6 +33,7 @@ export class AuthController {
     }
   })
   @ApiResponse({ status: 400, description: 'Rate limit exceeded or invalid phone' })
+  @ApiResponse({ status: 429, description: 'Too many requests - rate limit exceeded' })
   async sendOtp(@Body() sendOtpDto: SendOtpDto) {
     return this.authService.sendOtp(sendOtpDto);
   }

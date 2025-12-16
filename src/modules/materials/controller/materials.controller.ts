@@ -25,7 +25,7 @@ import * as path from 'path';
 
 @ApiTags('Materials')
 @ApiBearerAuth('JWT-auth')
-@Controller('api/v1')
+@Controller('materials')
 @UseGuards(JwtAuthGuard)
 export class MaterialsController {
   constructor(
@@ -84,7 +84,7 @@ export class MaterialsController {
         filename: (req, file, cb) => {
           const randomName = Array(32)
             .fill(null)
-            .map(() => Math.round(Math.random() * 16).toString(16))
+            .map(() => Math.floor(Math.random() * 16).toString(16))
             .join('');
           cb(null, `${randomName}${path.extname(file.originalname)}`);
         },

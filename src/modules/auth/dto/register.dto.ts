@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsPhoneNumber, IsString, MinLength, IsEnum } from 'class-validator';
+import { IsEmail, IsOptional, IsPhoneNumber, IsString, MinLength, IsEnum, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
 
@@ -22,12 +22,18 @@ export class RegisterDto {
   phoneNumber?: string;
 
   @ApiProperty({
-    description: 'User password (minimum 6 characters)',
-    example: 'SecurePass123',
-    minLength: 6
+    description: 'User password (minimum 8 characters, must contain uppercase, lowercase, number, and special character)',
+    example: 'SecurePass123!',
+    minLength: 8
   })
   @IsString()
-  @MinLength(6)
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @Matches(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+    {
+      message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
+    }
+  )
   password: string;
 
   @ApiProperty({

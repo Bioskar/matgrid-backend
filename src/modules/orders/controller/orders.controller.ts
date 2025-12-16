@@ -6,7 +6,7 @@ import { CreateOrderDto, ProcessPaymentDto } from '../dto/create-order.dto';
 
 @ApiTags('Orders')
 @ApiBearerAuth('JWT-auth')
-@Controller('api/v1/orders')
+@Controller('orders')
 @UseGuards(JwtAuthGuard)
 export class OrdersController {
   constructor(private ordersService: OrdersService) {}

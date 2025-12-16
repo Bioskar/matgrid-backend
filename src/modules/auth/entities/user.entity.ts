@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate, Index } from 'typeorm';
+import { BadRequestException } from '@nestjs/common';
 
 export enum UserRole {
   CONTRACTOR = 'contractor',
@@ -7,8 +8,6 @@ export enum UserRole {
 }
 
 @Entity('users')
-@Index(['email'])
-@Index(['phoneNumber'])
 @Index(['isActive'])
 @Index(['userRole'])
 export class User {
@@ -62,7 +61,7 @@ export class User {
   @BeforeUpdate()
   validateEmailOrPhone() {
     if (!this.email && !this.phoneNumber) {
-      throw new Error('Either email or phone number must be provided');
+      throw new BadRequestException('Either email or phone number must be provided');
     }
     if (this.email) {
       this.email = this.email.toLowerCase().trim();

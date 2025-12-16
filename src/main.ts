@@ -90,6 +90,11 @@ async function bootstrap() {
   const filteredLogger = new FilteredPinoLoggerService(pinoLogger);
   app.useLogger(filteredLogger);
 
+  // Set global API prefix (v1)
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['health', 'health/live', 'health/ready', '/'],
+  });
+
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -164,6 +169,9 @@ async function bootstrap() {
   const port = parseInt(process.env.PORT || '3000', 10);
   const host = process.env.HOST || '0.0.0.0';
   
+  // Enable graceful shutdown
+  app.enableShutdownHooks();
+  
   // Start listening on the port
   await app.listen(port, host);
 
@@ -178,11 +186,18 @@ async function bootstrap() {
     '[BOOTSTRAP] API Docs'
   );
   
-  // Keep server in scope to prevent garbage collection
-  // Create a promise that never resolves - server keeps event loop alive
-  await new Promise<never>(() => {
-    bootstrapLogger.debug({}, '[BOOTSTRAP] Server listening, never-resolving promise created');
-  });
+  // Graceful shutdown handlers
+  const shutdown = async (signal: string) => {
+    bootstrapLogger.info({ signal }, '[SHUTDOWN] Received shutdown signal');
+    await app.close();
+    bootstrapLogger.info({}, '[SHUTDOWN] Application closed gracefully');
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  
+  bootstrapLogger.debug({}, '[BOOTSTRAP] Server ready with graceful shutdown enabled');
 }
 
 bootstrap()
@@ -190,8 +205,4 @@ bootstrap()
     console.error('[FATAL] Bootstrap error:', err);
     bootstrapLogger.error({ error: err, stack: err?.stack }, '[FATAL] Application failed to start');
     process.exit(1);
-  })
-  .finally(() => {
-    // This should NOT be called if promise never resolves
-    console.error('[FATAL] Bootstrap promise settled (should never happen)');
   });

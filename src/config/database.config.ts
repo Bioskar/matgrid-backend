@@ -21,10 +21,11 @@ export function getDatabaseConfig(configService: ConfigService): TypeOrmModuleOp
 
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
 
-    // Auto-sync schema only in development
-    synchronize: nodeEnv !== 'production',
-
-    logging: nodeEnv === 'production' ? ['error', 'warn'] : ['error'],
+    // IMPORTANT: Disable synchronize in production, use migrations
+    // In development, you can enable synchronize OR use migrations (not both)
+    synchronize: nodeEnv === 'development', // Only true in dev for rapid prototyping
+    
+    logging: nodeEnv === 'production' ? ['error', 'warn'] : ['query', 'error', 'schema', 'warn'],
     maxQueryExecutionTime: nodeEnv === 'production' ? 1000 : undefined,
 
     ssl: configService.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
@@ -40,9 +41,9 @@ export function getDatabaseConfig(configService: ConfigService): TypeOrmModuleOp
     retryAttempts: 3,
     retryDelay: 3000,
 
-    migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
-    migrationsTableName: 'migrations',
-    migrationsRun: false,
+    migrations: [__dirname + '/../database/migrations/**/*{.ts,.js}'],
+    migrationsTableName: 'typeorm_migrations',
+    migrationsRun: nodeEnv === 'production', // Auto-run migrations in production
 
     dropSchema: false,
     cache: {

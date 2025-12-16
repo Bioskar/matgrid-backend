@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,6 +15,7 @@ import { LoggerProviderModule } from './common/modules/logger.module';
 import { getDatabaseConfig } from './config/database.config';
 import { DbValidationService } from './common/services/db-validation.service';
 import { getPinoHttpConfig } from './config/logger.config';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 
 @Module({
   imports: [
@@ -50,4 +51,10 @@ import { getPinoHttpConfig } from './config/logger.config';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(CorrelationIdMiddleware)
+      .forRoutes('*');
+  }
+}
