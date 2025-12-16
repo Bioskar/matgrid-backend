@@ -7,12 +7,13 @@ import { AuthController } from './controller/auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../materials/entities/user.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
+import { jwtConfig } from '../../config/jwt.config';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'default_secret',
+      secret: jwtConfig.secret,
       signOptions: { expiresIn: '7d' },
     }),
     PassportModule,
