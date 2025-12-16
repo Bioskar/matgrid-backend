@@ -8,6 +8,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from './entities/user.entity';
 import { UserOtp } from './entities/user-otp.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
+import { CommonModule } from '../../common/modules/common.module';
 import { jwtConfig } from '../../config/jwt.config';
 
 @Module({
@@ -19,6 +20,7 @@ import { jwtConfig } from '../../config/jwt.config';
     }),
     PassportModule,
     LoggerProviderModule,
+    CommonModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

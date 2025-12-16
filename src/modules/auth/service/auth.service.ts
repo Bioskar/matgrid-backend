@@ -9,6 +9,7 @@ import { UserOtp } from '../entities/user-otp.entity';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
+import { SmsService } from '../../../common/services/sms.service';
 
 @Injectable()
 export class AuthService {
@@ -19,6 +20,7 @@ export class AuthService {
     private otpRepository: Repository<UserOtp>,
     private jwtService: JwtService,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private smsService: SmsService,
   ) {}
 
   /**
@@ -225,20 +227,31 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
-    // TODO: Integrate SMS service (Twilio, AWS SNS, Termii, etc.)
-    // For now, log it (REMOVE IN PRODUCTION)
-    this.logger.info(
-      { phoneNumber, otp, expiresAt },
-      'OTP generated for user'
-    );
+    // Send OTP via SMS
+    const smsSent = await this.smsService.sendOtp(phoneNumber, otp);
+
+    if (!smsSent && this.smsService.isServiceEnabled()) {
+      this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
+      throw new BadRequestException('Failed to send OTP. Please try again.');
+    }
+
+    // Log OTP in development mode only
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.info(
+        { phoneNumber, otp, expiresAt, smsSent },
+        'OTP generated for user'
+      );
+    }
 
     return {
       success: true,
-      message: 'OTP sent successfully',
+      message: smsSent 
+        ? 'OTP sent to your phone number'
+        : 'OTP generated (SMS disabled in dev mode)',
       phoneNumber,
       expiresAt,
-      // REMOVE IN PRODUCTION - only for development
-      ...(process.env.NODE_ENV === 'development' && { otp }),
+      // REMOVE IN PRODUCTION - only for development when SMS is disabled
+      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp }),
     };
   }
 
