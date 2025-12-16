@@ -8,6 +8,7 @@ import { createBootstrapLogger, FilteredPinoLoggerService } from './config/logge
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
+import { networkInterfaces } from 'os';
 
 dotenv.config();
 
@@ -55,6 +56,25 @@ function validatePostgresEnv(): void {
     { host: required.DB_HOST, port: required.DB_PORT, database: required.DB_NAME },
     '[BOOTSTRAP] PostgreSQL environment verified'
   );
+}
+
+function resolveAccessibleAddresses(port: number, host: string): string[] {
+  if (host && host !== '0.0.0.0' && host !== '::') {
+    return [`http://${host}:${port}`];
+  }
+
+  const nets = networkInterfaces();
+  const addresses = new Set<string>([`http://localhost:${port}`]);
+
+  Object.values(nets).forEach((adapters) => {
+    adapters?.forEach((adapter) => {
+      if (!adapter.internal && adapter.family === 'IPv4') {
+        addresses.add(`http://${adapter.address}:${port}`);
+      }
+    });
+  });
+
+  return Array.from(addresses).sort();
 }
 
 async function bootstrap() {
@@ -142,17 +162,20 @@ async function bootstrap() {
   }
 
   const port = parseInt(process.env.PORT || '3000', 10);
+  const host = process.env.HOST || '0.0.0.0';
   
   // Start listening on the port
-  const server = await app.listen(port);
+  await app.listen(port, host);
+
+  const reachable = resolveAccessibleAddresses(port, host);
 
   bootstrapLogger.info(
-    { port, env: process.env.NODE_ENV || 'development' },
-    `[BOOTSTRAP] Application running on http://localhost:${port}`
+    { env: process.env.NODE_ENV || 'development', urls: reachable },
+    '[BOOTSTRAP] Application running'
   );
   bootstrapLogger.info(
-    { url: `http://localhost:${port}/api/docs` },
-    `[BOOTSTRAP] API Docs: http://localhost:${port}/api/docs`
+    { urls: reachable.map((url) => `${url}/api/docs`) },
+    '[BOOTSTRAP] API Docs'
   );
   
   // Keep server in scope to prevent garbage collection
