@@ -70,7 +70,10 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate JWT token
-    const token = this.jwtService.sign({ userId: user.id });
+    const token = this.jwtService.sign({ 
+      userId: user.id,
+      userRole: user.userRole,
+    });
 
     this.logger.info(
       { userId: user.id, email: user.email, method: email ? 'email' : 'phone' },
@@ -130,7 +133,10 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate JWT token
-    const token = this.jwtService.sign({ userId: user.id });
+    const token = this.jwtService.sign({ 
+      userId: user.id,
+      userRole: user.userRole,
+    });
 
     this.logger.info(
       { userId: user.id, email: user.email, method: emailOrPhone.includes('@') ? 'email' : 'phone' },
@@ -145,6 +151,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         fullName: user.fullName,
         company: user.company,
+        userRole: user.userRole,
       },
       token,
     };
@@ -347,7 +354,10 @@ export class AuthService {
 
     if (existingUser) {
       // Return existing user with token
-      const token = this.jwtService.sign({ userId: existingUser.id });
+      const token = this.jwtService.sign({ 
+        userId: existingUser.id,
+        userRole: existingUser.userRole,
+      });
       
       return {
         success: true,
@@ -378,7 +388,10 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate JWT token
-    const token = this.jwtService.sign({ userId: user.id });
+    const token = this.jwtService.sign({ 
+      userId: user.id,
+      userRole: user.userRole,
+    });
 
     this.logger.info(
       { userId: user.id, phoneNumber: user.phoneNumber, userRole: user.userRole },
