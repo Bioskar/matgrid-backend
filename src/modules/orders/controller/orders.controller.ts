@@ -13,8 +13,50 @@ export class OrdersController {
 
   @Post()
   @ApiOperation({
-    summary: 'Create order from selected suppliers',
-    description: 'Create order with items from multiple suppliers after quote selection'
+    summary: 'Create order from accepted quotes',
+    description: `
+      **Creates an order after contractor accepts supplier quote(s)**
+      
+      **Process:**
+      1. Contractor reviews supplier quotes
+      2. Selects best quote(s) for materials
+      3. Creates order with selected items
+      4. System generates order number
+      5. Returns order ready for payment
+      
+      **Required fields:**
+      - quoteId: The original material quote
+      - supplierQuoteIds: Array of accepted supplier quote IDs
+      - deliveryAddress: Confirmed delivery address
+      - contactName: Who to contact for delivery
+      - contactPhone: Contact phone number
+      
+      **Optional fields:**
+      - deliveryNotes: Special delivery instructions
+      - preferredDeliveryDate: When you need delivery
+      
+      **Order includes:**
+      - All selected materials with agreed prices
+      - Subtotal of all items
+      - Delivery fee (calculated by distance)
+      - Service fee (5% platform fee)
+      - Grand total
+      
+      **Order statuses:**
+      - pending: Awaiting payment
+      - paid: Payment completed, processing
+      - confirmed: Suppliers confirmed order
+      - shipped: Items dispatched
+      - delivered: Order completed
+      
+      **Frontend flow:**
+      1. Show order summary with totals
+      2. Confirm delivery details
+      3. Create order
+      4. Redirect to payment page
+      
+      **Next step:** Process payment via POST /orders/:orderId/pay
+    `
   })
   @ApiResponse({
     status: 201,
@@ -49,12 +91,52 @@ export class OrdersController {
 
   @Get()
   @ApiOperation({
-    summary: 'Get user orders',
-    description: 'Retrieve all orders for authenticated user'
+    summary: 'Get all user orders',
+    description: `
+      **Retrieves complete order history for authenticated user**
+      
+      **Returns:**
+      - All orders (past and current)
+      - Order number, date, status
+      - Total amount per order
+      - Payment status
+      - Delivery status
+      
+      **Order sorting:**
+      - Newest orders first
+      - Can filter by status
+      - Searchable by order number
+      
+      **Use for:**
+      - Order history page
+      - Tracking current orders
+      - Reordering materials
+      - Generating reports
+      
+      **Frontend display:**
+      - Show in table or card list
+      - Display: Order #, Date, Total, Status
+      - Color code by status (pending=yellow, delivered=green)
+      - "View Details" for each order
+      - Filter buttons (All, Pending, Completed)
+    `
   })
   @ApiResponse({
     status: 200,
-    description: 'Orders retrieved successfully'
+    description: 'Orders retrieved successfully',
+    schema: {
+      example: [
+        {
+          id: '507f1f77bcf86cd799439011',
+          orderNumber: '#12345678',
+          totalAmount: 2025000,
+          status: 'delivered',
+          paymentStatus: 'completed',
+          createdAt: '2025-12-15T10:00:00.000Z',
+          deliveredAt: '2025-12-17T10:00:00.000Z'
+        }
+      ]
+    }
   })
   async getUserOrders(@Req() req: any) {
     const userId = req.user.userId;
@@ -77,8 +159,62 @@ export class OrdersController {
 
   @Post(':orderId/pay')
   @ApiOperation({
-    summary: 'Process payment for order',
-    description: 'Complete payment for an order using selected payment method'
+    summary: 'Process order payment',
+    description: `
+      **Processes payment for a pending order**
+      
+      **Required fields:**
+      - paymentMethod: "card", "bank_transfer", "paystack", "flutterwave"
+      - amount: Total amount to pay (must match order total)
+      
+      **Optional fields:**
+      - paymentReference: Transaction reference from payment gateway
+      - customerEmail: For payment receipt
+      
+      **Payment flow:**
+      1. User selects payment method
+      2. If card/gateway: Redirect to payment page
+      3. Payment processed by gateway
+      4. Callback updates order status
+      5. Return success with transaction reference
+      
+      **Supported payment methods:**
+      - **card**: Credit/Debit card via Paystack/Flutterwave
+      - **bank_transfer**: Direct bank transfer with account details
+      - **paystack**: Paystack payment gateway
+      - **flutterwave**: Flutterwave payment gateway
+      
+      **Payment verification:**
+      - Amount must exactly match order total
+      - Order must be in "pending" status
+      - Cannot pay twice for same order
+      
+      **After successful payment:**
+      - Order status → "paid"
+      - PaymentStatus → "completed"
+      - Email/SMS confirmation sent
+      - Suppliers notified to fulfill order
+      
+      **Frontend implementation:**
+      \`\`\`javascript
+      // Paystack example
+      const paystack = new PaystackPop();
+      paystack.newTransaction({
+        key: 'pk_your_key',
+        email: user.email,
+        amount: order.totalAmount * 100, // kobo
+        onSuccess: (transaction) => {
+          // Call this endpoint with transaction.reference
+          POST /orders/:orderId/pay
+        }
+      });
+      \`\`\`
+      
+      **Error handling:**
+      - 400: Invalid amount → "Amount doesn't match order total"
+      - 400: Already paid → "Order already paid"
+      - 402: Payment failed → "Payment processing failed, try again"
+    `
   })
   @ApiResponse({
     status: 200,

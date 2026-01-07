@@ -1,97 +1,231 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import pino from 'pino';
-import * as twilio from 'twilio';
+import axios from 'axios';
 
 @Injectable()
 export class SmsService {
-  private twilioClient: twilio.Twilio | null = null;
-  private fromNumber: string;
-  private isEnabled: boolean;
+  // Termii configuration (for Nigerian numbers)
+  private termiiApiKey: string;
+  private termiiSenderId: string;
+  private termiiEnabled: boolean;
+  private termiiApiUrl = 'https://api.ng.termii.com/api/sms/send';
+
+  // Twilio configuration (for international numbers)
+  private twilioAccountSid: string;
+  private twilioAuthToken: string;
+  private twilioFromNumber: string;
+  private twilioEnabled: boolean;
+  private twilioApiUrl: string;
 
   constructor(
     private configService: ConfigService,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
   ) {
-    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
-    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
-    this.fromNumber = this.configService.get<string>('TWILIO_PHONE_NUMBER') || '';
+    // Initialize Termii
+    this.termiiApiKey = this.configService.get<string>('TERMII_API_KEY') || '';
+    this.termiiSenderId = this.configService.get<string>('TERMII_SENDER_ID') || 'MatGrid';
+    this.termiiEnabled = !!this.termiiApiKey;
 
-    // Only enable if credentials are provided
-    this.isEnabled = !!(accountSid && authToken && this.fromNumber);
+    // Initialize Twilio
+    this.twilioAccountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID') || '';
+    this.twilioAuthToken = this.configService.get<string>('TWILIO_AUTH_TOKEN') || '';
+    this.twilioFromNumber = this.configService.get<string>('TWILIO_PHONE_NUMBER') || '';
+    this.twilioEnabled = !!(this.twilioAccountSid && this.twilioAuthToken && this.twilioFromNumber);
+    this.twilioApiUrl = `https://api.twilio.com/2010-04-01/Accounts/${this.twilioAccountSid}/Messages.json`;
 
-    if (this.isEnabled) {
-      this.twilioClient = twilio.default(accountSid, authToken);
-      this.logger.info({}, 'SMS service enabled with Twilio');
+    // Log service status
+    if (this.termiiEnabled && this.twilioEnabled) {
+      this.logger.info({}, 'SMS service enabled - Termii (Nigeria) + Twilio (International)');
+    } else if (this.termiiEnabled) {
+      this.logger.info({}, 'SMS service enabled - Termii only (Nigerian numbers)');
+    } else if (this.twilioEnabled) {
+      this.logger.info({}, 'SMS service enabled - Twilio only (International numbers)');
     } else {
-      this.logger.warn({}, 'SMS service disabled - Twilio credentials not configured');
+      this.logger.warn({}, 'SMS service disabled - No credentials configured');
     }
   }
 
   /**
-   * Send OTP via SMS
-   * @param phoneNumber - International format (e.g., +2348012345678)
+   * Send OTP via SMS - Routes to Termii or Twilio based on country code
+   * @param phoneNumber - Phone number (e.g., 08012345678 or +16175551212)
    * @param otp - 6-digit OTP code
    */
   async sendOtp(phoneNumber: string, otp: string): Promise<boolean> {
-    // Ensure phone number is in international format
-    const formattedNumber = this.formatPhoneNumber(phoneNumber);
+    const isNigerian = this.isNigerianNumber(phoneNumber);
+    
+    if (isNigerian) {
+      return this.sendViaTermii(phoneNumber, otp);
+    } else {
+      return this.sendViaTwilio(phoneNumber, otp);
+    }
+  }
 
-    const message = `Your MatGrid OTP is: ${otp}. Valid for 10 minutes. Do not share this code.`;
+  /**
+   * Check if phone number is Nigerian
+   */
+  private isNigerianNumber(phoneNumber: string): boolean {
+    const cleaned = phoneNumber.replace(/\D/g, '');
+    
+    // Nigerian numbers start with:
+    // - 0 (local format: 0803, 0701, etc.)
+    // - 234 (international: 234803, etc.)
+    // - +234 (international with +)
+    return cleaned.startsWith('0') || 
+           cleaned.startsWith('234') || 
+           phoneNumber.startsWith('+234');
+  }
 
-    if (!this.isEnabled) {
+  /**
+   * Send OTP via Termii (Nigerian numbers)
+   */
+  private async sendViaTermii(phoneNumber: string, otp: string): Promise<boolean> {
+    if (!this.termiiEnabled) {
       this.logger.warn(
-        { phoneNumber: formattedNumber, otp },
-        'SMS service disabled - OTP not sent (DEV MODE)'
+        { phoneNumber, otp },
+        'Termii disabled - Nigerian number cannot be sent'
       );
       return false;
     }
 
+    const formattedNumber = this.formatNigerianNumber(phoneNumber);
+    const message = `Your MatGrid OTP is: ${otp}. Valid for 10 minutes. Do not share this code.`;
+
     try {
-      const result = await this.twilioClient.messages.create({
-        body: message,
-        from: this.fromNumber,
+      const response = await axios.post(this.termiiApiUrl, {
         to: formattedNumber,
+        from: this.termiiSenderId,
+        sms: message,
+        type: 'plain',
+        channel: 'dnd', // Use DND route for OTP/transactional messages
+        api_key: this.termiiApiKey,
       });
 
-      this.logger.info(
-        { 
-          phoneNumber: formattedNumber, 
-          sid: result.sid, 
-          status: result.status 
-        },
-        'OTP SMS sent successfully'
-      );
+      if (response.data.message_id) {
+        this.logger.info(
+          { 
+            phoneNumber: formattedNumber, 
+            messageId: response.data.message_id,
+            balance: response.data.balance,
+            provider: 'Termii',
+          },
+          'OTP SMS sent successfully via Termii'
+        );
+        return true;
+      }
 
-      return result.status === 'queued' || result.status === 'sent' || result.status === 'delivered';
+      this.logger.error(
+        { phoneNumber: formattedNumber, response: response.data },
+        'Termii SMS send failed'
+      );
+      return false;
     } catch (error) {
       this.logger.error(
         { 
           phoneNumber: formattedNumber, 
-          error: error.message, 
-          code: error.code 
+          error: error.response?.data || error.message,
+          provider: 'Termii',
         },
-        'Failed to send OTP SMS'
+        'Failed to send OTP SMS via Termii'
       );
       return false;
     }
   }
 
   /**
-   * Format phone number to international format
-   * Assumes Nigerian numbers if no country code provided
+   * Send OTP via Twilio (International numbers)
    */
-  private formatPhoneNumber(phoneNumber: string): string {
-    // Remove all non-digit characters
+  private async sendViaTwilio(phoneNumber: string, otp: string): Promise<boolean> {
+    if (!this.twilioEnabled) {
+      this.logger.warn(
+        { phoneNumber, otp },
+        'Twilio disabled - International number cannot be sent'
+      );
+      return false;
+    }
+
+    const formattedNumber = this.formatInternationalNumber(phoneNumber);
+    const message = `Your MatGrid OTP is: ${otp}. Valid for 10 minutes. Do not share this code.`;
+
+    try {
+      const response = await axios.post(
+        this.twilioApiUrl,
+        new URLSearchParams({
+          To: formattedNumber,
+          From: this.twilioFromNumber,
+          Body: message,
+        }),
+        {
+          auth: {
+            username: this.twilioAccountSid,
+            password: this.twilioAuthToken,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        }
+      );
+
+      this.logger.info(
+        { 
+          phoneNumber: formattedNumber, 
+          sid: response.data.sid, 
+          status: response.data.status,
+          provider: 'Twilio',
+        },
+        'OTP SMS sent successfully via Twilio'
+      );
+
+      return ['queued', 'sent', 'delivered'].includes(response.data.status);
+    } catch (error) {
+      this.logger.error(
+        { 
+          phoneNumber: formattedNumber, 
+          error: error.response?.data || error.message,
+          provider: 'Twilio',
+        },
+        'Failed to send OTP SMS via Twilio'
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Format Nigerian phone number for Termii
+   * Termii accepts: 2348012345678 (no + prefix)
+   */
+  private formatNigerianNumber(phoneNumber: string): string {
     let cleaned = phoneNumber.replace(/\D/g, '');
 
-    // If starts with 0, replace with +234 (Nigeria)
+    // If starts with 0, replace with 234
     if (cleaned.startsWith('0')) {
       cleaned = '234' + cleaned.substring(1);
     }
 
-    // Add + if not present
-    if (!cleaned.startsWith('+')) {
+    // Remove + if present
+    if (cleaned.startsWith('+')) {
+      cleaned = cleaned.substring(1);
+    }
+
+    // Ensure it starts with 234
+    if (!cleaned.startsWith('234')) {
+      cleaned = '234' + cleaned;
+    }
+
+    return cleaned;
+  }
+
+  /**
+   * Format international phone number for Twilio
+   * Twilio requires: +16175551212 (with + prefix)
+   */
+  private formatInternationalNumber(phoneNumber: string): string {
+    let cleaned = phoneNumber.replace(/\D/g, '');
+
+    // Add + prefix if not present
+    if (!phoneNumber.startsWith('+')) {
+      cleaned = '+' + cleaned;
+    } else {
       cleaned = '+' + cleaned;
     }
 
@@ -99,9 +233,9 @@ export class SmsService {
   }
 
   /**
-   * Check if SMS service is enabled
+   * Check if SMS service is enabled (either Termii or Twilio)
    */
   isServiceEnabled(): boolean {
-    return this.isEnabled;
+    return this.termiiEnabled || this.twilioEnabled;
   }
 }

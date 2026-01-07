@@ -9,7 +9,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { SuppliersService } from '../service/suppliers.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CreateSupplierQuoteDto } from '../dto/create-supplier-quote.dto';
@@ -24,12 +24,50 @@ export class SuppliersController {
 
   @Get('requests')
   @ApiOperation({
-    summary: 'Get incoming quote requests',
-    description: 'View all incoming material requests matching supplier categories'
+    summary: 'Get incoming quote requests (Supplier)',
+    description: `
+      **Retrieves all material quote requests sent by contractors**
+      
+      **Returns:**
+      - List of quotes waiting for supplier response
+      - Project details (name, delivery location)
+      - Materials list with quantities
+      - Deadline for quote submission
+      
+      **Filtering (automatic):**
+      - Only shows quotes matching supplier's categories
+      - Excludes quotes already quoted by this supplier
+      - Sorted by newest first
+      
+      **Use for:**
+      - Supplier dashboard "New Requests" section
+      - Opportunity list for bidding
+      - Business development
+      
+      **Frontend display:**
+      - Show as cards or list
+      - Display: Project name, materials count, location
+      - "View Details" button to see full materials
+      - "Submit Quote" action button
+      
+      **Next step:** Submit pricing via POST /suppliers/submit-quote
+    `
   })
   @ApiResponse({
     status: 200,
-    description: 'Incoming requests retrieved successfully'
+    description: 'Incoming quote requests',
+    schema: {
+      example: [
+        {
+          id: '507f1f77bcf86cd799439011',
+          projectName: 'Office Building',
+          deliveryAddress: '123 Main St, Lagos',
+          materialsCount: 15,
+          createdAt: '2025-12-17T10:00:00.000Z',
+          deadline: '2025-12-20T10:00:00.000Z'
+        }
+      ]
+    }
   })
   async getIncomingRequests(@Req() req: any) {
     const supplierId = req.user.supplierId || req.user.userId;
@@ -38,12 +76,89 @@ export class SuppliersController {
 
   @Post('submit-quote')
   @ApiOperation({
-    summary: 'Submit quote with pricing',
-    description: 'Submit pricing for materials in a quote request'
+    summary: 'Submit pricing quote (Supplier)',
+    description: `
+      **Submit pricing for a contractor's material request**
+      
+      **Required fields:**
+      - quoteId: The contractor's quote to respond to
+      - items: Array of materials with pricing
+      
+      **Each item must have:**
+      - materialId: ID of the material from request
+      - unitPrice: Your price per unit (in Naira)
+      - availability: "in_stock" or "order_basis"
+      - deliveryDays: How many days to deliver
+      
+      **Optional per item:**
+      - brand: Brand you'll supply
+      - notes: Special conditions or alternatives
+      
+      **Example pricing:**
+      \`\`\`json
+      {
+        "quoteId": "507f1f77bcf86cd799439011",
+        "items": [
+          {
+            "materialId": "mat123",
+            "unitPrice": 10000,
+            "availability": "in_stock",
+            "deliveryDays": 2,
+            "brand": "Dangote"
+          }
+        ]
+      }
+      \`\`\`
+      
+      **System calculates:**
+      - Line totals (quantity × unitPrice)
+      - Grand total across all items
+      - Your competitiveness vs other suppliers
+      
+      **Frontend checklist:**
+      - Show materials with input fields for prices
+      - Calculate totals in real-time
+      - Validate all prices > 0
+      - Confirm before submission
+      - Show success message after submit
+      
+      **After submission:**
+      - Contractor can see your quote
+      - You can view in "My Quotes" section
+      - Wait for contractor to accept/reject
+    `
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        quoteId: '507f1f77bcf86cd799439011',
+        items: [
+          {
+            materialId: 'mat123',
+            unitPrice: 10000,
+            availability: 'in_stock',
+            deliveryDays: 2,
+            brand: 'Dangote'
+          }
+        ]
+      }
+    }
   })
   @ApiResponse({
     status: 201,
-    description: 'Quote submitted successfully'
+    description: 'Quote submitted successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Quote submitted successfully',
+        supplierQuote: {
+          id: '507f1f77bcf86cd799439012',
+          totalAmount: 500000,
+          status: 'pending',
+          submittedAt: '2025-12-17T10:00:00.000Z'
+        }
+      }
+    }
   })
   async submitQuote(@Body() submitQuoteDto: SubmitSupplierQuoteDto, @Req() req: any) {
     const supplierId = req.user.supplierId || req.user.userId;
