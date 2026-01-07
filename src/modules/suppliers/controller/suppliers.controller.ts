@@ -200,6 +200,59 @@ export class SuppliersController {
     return this.suppliersService.getSupplierQuotes(quoteId);
   }
 
+  /**
+   * Get supplier quotes grouped by material category for comparison
+   * Used in "Choose Your Suppliers" screen
+   */
+  @Get('quotes/:quoteId/grouped')
+  @ApiOperation({
+    summary: 'Get supplier quotes grouped by category',
+    description: 'Returns supplier quotes organized by material category for side-by-side comparison in the "Choose Your Suppliers" screen.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Grouped supplier quotes retrieved successfully',
+    schema: {
+      example: {
+        success: true,
+        quoteId: 'quote-uuid',
+        groupedQuotes: [
+          {
+            category: 'Cement & Blocks',
+            description: '20 Cement & Blocks items',
+            materials: [
+              { id: 'mat-1', name: 'Dangote Cement', quantity: 50, unit: 'bags' },
+            ],
+            supplierOptions: [
+              {
+                supplierId: 'sup-1',
+                supplierQuoteId: 'sq-1',
+                supplierName: 'Buildmart Lagos',
+                location: 'Ikeja, Lagos',
+                distance: '2.5 km',
+                rating: 4.8,
+                reviewsCount: 245,
+                deliveryDays: 0,
+                stockStatus: 'In Stock',
+                subtotal: 850000,
+                items: [
+                  { materialId: 'mat-1', name: 'Dangote Cement', quantity: 50, unit: 'bags', unitPrice: 17000, total: 850000 },
+                ],
+              },
+            ],
+            lowestPrice: 850000,
+          },
+        ],
+        totalEstimate: 1950000,
+        currency: 'NGN',
+        message: 'Found quotes from 3 suppliers across 2 categories',
+      },
+    },
+  })
+  async getSupplierQuotesGrouped(@Param('quoteId') quoteId: string) {
+    return this.suppliersService.getSupplierQuotesGrouped(quoteId);
+  }
+
   @Get('quotes/:quoteId/best')
   async getBestSupplierForQuote(@Param('quoteId') quoteId: string) {
     return this.suppliersService.getBestSupplierForQuote(quoteId);

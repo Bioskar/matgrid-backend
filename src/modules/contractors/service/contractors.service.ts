@@ -8,8 +8,13 @@ import { Material } from '../../quotes/entities/material.entity';
 import { Quote } from '../../quotes/entities/quote.entity';
 import { SupplierQuote } from '../../suppliers/entities/supplier-quote.entity';
 import { Order } from '../../orders/entities/order.entity';
+import { ContractorProject, ProjectStatus } from '../entities/project.entity';
 import { CreateContractorProjectDto } from '../dto/create-contractor-project.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { CreateProjectWithBOQDto, ParsedMaterialItem } from '../dto/boq-parse.dto';
+import { CreateQuickQuoteDto } from '../dto/quick-quote.dto';
+import { KycService } from '../../kyc/service/kyc.service';
+import { BOQParserService } from './boq-parser.service';
 
 @Injectable()
 export class ContractorsService {
@@ -26,7 +31,11 @@ export class ContractorsService {
     private supplierQuoteRepository: Repository<SupplierQuote>,
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
+    @InjectRepository(ContractorProject)
+    private projectRepository: Repository<ContractorProject>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private kycService: KycService,
+    private boqParserService: BOQParserService,
   ) {}
 
   async getOrCreateContractor(userId: string): Promise<Contractor> {
@@ -61,6 +70,9 @@ export class ContractorsService {
   async getContractorProfile(userId: string): Promise<any> {
     const contractor = await this.getOrCreateContractor(userId);
     
+    // Get KYC verification status
+    const kycStatus = await this.kycService.getVerificationStatus(userId);
+    
     return {
       id: contractor.userId,
       email: contractor.user.email,
@@ -75,6 +87,13 @@ export class ContractorsService {
       isActive: contractor.isActive,
       createdAt: contractor.createdAt,
       updatedAt: contractor.updatedAt,
+      kycStatus: {
+        verificationStatus: kycStatus.overallStatus,
+        isFullyVerified: kycStatus.isFullyVerified,
+        isIdentityVerified: kycStatus.isIdentityVerified,
+        isBusinessVerified: kycStatus.isBusinessVerified,
+        documentsCount: kycStatus.totalDocuments,
+      },
     };
   }
 
@@ -88,6 +107,7 @@ export class ContractorsService {
     if (updateDto.fullName) contractor.fullName = updateDto.fullName;
     if (updateDto.company) contractor.company = updateDto.company;
     if (updateDto.profilePhoto) contractor.profilePhoto = updateDto.profilePhoto;
+    if (updateDto.businessAddress !== undefined) contractor.businessAddress = updateDto.businessAddress;
 
     await this.contractorRepository.save(contractor);
 
@@ -115,7 +135,6 @@ export class ContractorsService {
     return await this.materialRepository
       .createQueryBuilder('material')
       .where('material.quoteId IN (:...quoteIds)', { quoteIds })
-      .andWhere('material.isActive = :isActive', { isActive: true })
       .orderBy('material.createdAt', 'DESC')
       .getMany();
   }
@@ -171,7 +190,6 @@ export class ContractorsService {
       materialsCount = await this.materialRepository
         .createQueryBuilder('material')
         .where('material.quoteId IN (:...quoteIds)', { quoteIds })
-        .andWhere('material.isActive = :isActive', { isActive: true })
         .getCount();
     }
 
@@ -223,7 +241,6 @@ export class ContractorsService {
     return await this.materialRepository
       .createQueryBuilder('material')
       .where('material.quoteId IN (:...quoteIds)', { quoteIds })
-      .andWhere('material.isActive = :isActive', { isActive: true })
       .andWhere(
         '(LOWER(material.name) LIKE LOWER(:search) OR LOWER(material.category) LIKE LOWER(:search))',
         { search: `%${searchTerm}%` },
@@ -231,4 +248,218 @@ export class ContractorsService {
       .orderBy('material.createdAt', 'DESC')
       .getMany();
   }
+
+  // ============== PROJECT MANAGEMENT METHODS ==============
+
+  async createProject(userId: string, dto: CreateProjectWithBOQDto): Promise<ContractorProject> {
+    this.logger.info({ userId, projectName: dto.projectName }, '[Contractors] Creating new project');
+
+    const project = this.projectRepository.create({
+      userId,
+      projectName: dto.projectName,
+      deliveryLocation: dto.deliveryAddress,
+      description: dto.description,
+      notes: dto.notes,
+      status: ProjectStatus.DRAFT,
+    });
+
+    const savedProject = await this.projectRepository.save(project);
+    this.logger.info({ projectId: savedProject.id }, '[Contractors] Project created successfully');
+
+    return savedProject;
+  }
+
+  async addMaterialsToProject(
+    userId: string,
+    projectId: string,
+    materials: ParsedMaterialItem[],
+  ): Promise<Quote> {
+    const project = await this.projectRepository.findOne({
+      where: { id: projectId, userId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    this.logger.info({ projectId, materialsCount: materials.length }, '[Contractors] Adding materials to project');
+
+    // Create a quote for this project
+    const quote = this.quoteRepository.create({
+      userId,
+      projectId,
+      title: `${project.projectName} - Materials Request`,
+      status: 'draft',
+      currency: 'NGN',
+    });
+
+    const savedQuote = await this.quoteRepository.save(quote);
+
+    // Create materials from parsed BOQ
+    const materialEntities = materials.map(item => 
+      this.materialRepository.create({
+        quoteId: savedQuote.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        description: `Parsed from BOQ: ${item.originalText}`,
+        sourceMethod: 'paste',
+        currency: 'NGN',
+      })
+    );
+
+    await this.materialRepository.save(materialEntities);
+
+    // Update quote counts
+    savedQuote.materialsCount = materials.length;
+    await this.quoteRepository.save(savedQuote);
+
+    // Update project counts
+    project.quotesCount += 1;
+    project.materialsCount += materials.length;
+    project.status = ProjectStatus.REVIEW_QUOTES;
+    await this.projectRepository.save(project);
+
+    this.logger.info(
+      { projectId, quoteId: savedQuote.id, materialsCount: materials.length },
+      '[Contractors] Materials added to project successfully',
+    );
+
+    return savedQuote;
+  }
+
+  async getProjects(userId: string, status?: ProjectStatus): Promise<ContractorProject[]> {
+    const where: any = { userId };
+    if (status) {
+      where.status = status;
+    }
+
+    return await this.projectRepository.find({
+      where,
+      relations: ['quotes'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getProjectById(userId: string, projectId: string): Promise<ContractorProject> {
+    const project = await this.projectRepository.findOne({
+      where: { id: projectId, userId },
+      relations: ['quotes', 'quotes.materials'],
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    return project;
+  }
+
+  async updateProjectStatus(
+    userId: string,
+    projectId: string,
+    status: ProjectStatus,
+  ): Promise<ContractorProject> {
+    const project = await this.projectRepository.findOne({
+      where: { id: projectId, userId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    project.status = status;
+    return await this.projectRepository.save(project);
+  }
+
+  async getDashboardWithProjects(userId: string): Promise<any> {
+    const [basicStats, projects] = await Promise.all([
+      this.getContractorDashboardStats(userId),
+      this.getProjects(userId),
+    ]);
+
+    const projectsByStatus = {
+      draft: projects.filter(p => p.status === ProjectStatus.DRAFT).length,
+      reviewQuotes: projects.filter(p => p.status === ProjectStatus.REVIEW_QUOTES).length,
+      inProgress: projects.filter(p => p.status === ProjectStatus.IN_PROGRESS).length,
+      completed: projects.filter(p => p.status === ProjectStatus.COMPLETED).length,
+      cancelled: projects.filter(p => p.status === ProjectStatus.CANCELLED).length,
+    };
+
+    return {
+      ...basicStats,
+      projectsCount: projects.length,
+      projectsByStatus,
+      recentProjects: projects.slice(0, 5),
+    };
+  }
+
+  async createQuickQuote(userId: string, dto: CreateQuickQuoteDto): Promise<any> {
+    this.logger.info({ userId, materialsCount: dto.materials.length }, '[Contractors] Creating quick quote');
+
+    // Create a project if name and location provided, otherwise use a default
+    const projectName = dto.projectName || `Material Request - ${new Date().toISOString().split('T')[0]}`;
+    const deliveryLocation = dto.deliveryLocation || 'To be specified';
+
+    const project = this.projectRepository.create({
+      userId,
+      projectName,
+      deliveryLocation,
+      notes: dto.notes,
+      status: ProjectStatus.DRAFT,
+    });
+
+    const savedProject = await this.projectRepository.save(project);
+
+    // Create a quote for this project
+    const quote = this.quoteRepository.create({
+      userId,
+      projectId: savedProject.id,
+      title: `${projectName} - Materials Request`,
+      status: 'draft',
+      currency: 'NGN',
+    });
+
+    const savedQuote = await this.quoteRepository.save(quote);
+
+    // Create materials from manual entry
+    const materialEntities = dto.materials.map(item =>
+      this.materialRepository.create({
+        quoteId: savedQuote.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        description: item.description,
+        brand: item.brand,
+        sourceMethod: 'manual',
+        currency: 'NGN',
+      })
+    );
+
+    const savedMaterials = await this.materialRepository.save(materialEntities);
+
+    // Update quote counts
+    savedQuote.materialsCount = dto.materials.length;
+    await this.quoteRepository.save(savedQuote);
+
+    // Update project counts
+    savedProject.quotesCount = 1;
+    savedProject.materialsCount = dto.materials.length;
+    savedProject.status = ProjectStatus.REVIEW_QUOTES;
+    await this.projectRepository.save(savedProject);
+
+    this.logger.info(
+      { projectId: savedProject.id, quoteId: savedQuote.id, materialsCount: dto.materials.length },
+      '[Contractors] Quick quote created successfully',
+    );
+
+    return {
+      project: savedProject,
+      quote: {
+        ...savedQuote,
+        materials: savedMaterials,
+      },
+      message: 'Quote request created successfully. You can now share with suppliers.',
+    };
+  }
 }
+

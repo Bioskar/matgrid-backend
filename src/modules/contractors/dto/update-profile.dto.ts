@@ -33,4 +33,12 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   profilePhoto?: string;
+
+  @ApiPropertyOptional({
+    description: 'Business/Registered address',
+    example: '14 Adeola Odeku St, VI, Lagos',
+  })
+  @IsOptional()
+  @IsString()
+  businessAddress?: string;
 }

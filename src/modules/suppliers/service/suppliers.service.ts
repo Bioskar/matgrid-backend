@@ -195,6 +195,111 @@ export class SuppliersService {
   }
 
   /**
+   * Get supplier quotes grouped by material category for comparison
+   * Used in "Choose Your Suppliers" screen
+   */
+  async getSupplierQuotesGrouped(quoteId: string) {
+    const supplierQuotes = await this.supplierQuoteRepository.find({
+      where: { quoteId },
+      relations: ['supplier'],
+    });
+
+    const materials = await this.materialRepository.find({
+      where: { quoteId },
+    });
+
+    if (supplierQuotes.length === 0) {
+      return {
+        success: true,
+        message: 'No supplier quotes received yet',
+        groupedQuotes: [],
+        totalEstimate: 0,
+      };
+    }
+
+    // Group materials by category
+    const categorizedMaterials = materials.reduce((acc, material) => {
+      const category = material.category || 'Other';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(material);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // For each category, find supplier quotes for those materials
+    const groupedQuotes = Object.entries(categorizedMaterials).map(([category, categoryMaterials]) => {
+      const materialIds = categoryMaterials.map(m => m.id);
+      
+      // Find suppliers who quoted for materials in this category
+      const categorySupplierQuotes = supplierQuotes
+        .map(sq => {
+          // sq.materials is a JSON array of SupplierQuoteMaterial
+          const relevantItems = sq.materials.filter(item => 
+            materialIds.includes(item.materialId)
+          );
+          
+          if (relevantItems.length === 0) return null;
+          
+          const subtotal = relevantItems.reduce((sum, item) => 
+            sum + (item.totalPrice || 0), 0
+          );
+          
+          return {
+            supplierId: sq.supplierId,
+            supplierQuoteId: sq.id,
+            supplierName: sq.supplier.name,
+            location: sq.supplier.shopAddress || 'Not specified',
+            rating: sq.supplier.rating || 0,
+            deliveryDays: 2, // Can be calculated from quote delivery estimate
+            stockStatus: 'Available',
+            subtotal,
+            items: relevantItems.map(item => {
+              const material = materials.find(m => m.id === item.materialId);
+              return {
+                materialId: item.materialId,
+                name: material?.name || 'Unknown',
+                quantity: material?.quantity || 0,
+                unit: material?.unit || 'unit',
+                unitPrice: item.unitPrice || 0,
+                total: item.totalPrice || 0,
+              };
+            }),
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a!.subtotal - b!.subtotal); // Sort by price (lowest first)
+      
+      return {
+        category,
+        description: `${categoryMaterials.length} ${category} items`,
+        materials: categoryMaterials.map(m => ({
+          id: m.id,
+          name: m.name,
+          quantity: m.quantity,
+          unit: m.unit,
+        })),
+        supplierOptions: categorySupplierQuotes,
+        lowestPrice: categorySupplierQuotes[0]?.subtotal || 0,
+      };
+    });
+
+    // Calculate total with best prices from each category
+    const totalEstimate = groupedQuotes.reduce((sum, group) => 
+      sum + (group.lowestPrice || 0), 0
+    );
+
+    return {
+      success: true,
+      quoteId,
+      groupedQuotes,
+      totalEstimate,
+      currency: 'NGN',
+      message: `Found quotes from ${supplierQuotes.length} suppliers across ${groupedQuotes.length} categories`,
+    };
+  }
+
+  /**
    * Update supplier quote status
    */
   async updateSupplierQuoteStatus(supplierQuoteId: string, status: string) {
