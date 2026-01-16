@@ -1,10 +1,13 @@
-import { Controller, Post, Get, Body, UseGuards, Req, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Headers } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../service/auth.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
+import { AuthResponseDto, UserResponseDto } from '../dto/user-response.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
 @ApiTags('Authentication')
@@ -176,6 +179,7 @@ export class AuthController {
   @ApiResponse({
     status: 201,
     description: 'Registration completed successfully',
+    type: AuthResponseDto,
     schema: {
       example: {
         success: true,
@@ -187,9 +191,13 @@ export class AuthController {
           userRole: 'contractor',
           company: 'Acme Construction',
           profilePhoto: null,
-          createdAt: '2025-12-16T07:00:00.000Z'
+          isEmailVerified: false,
+          isPhoneVerified: true,
+          isActive: true,
+          createdAt: '2025-12-16T07:00:00.000Z',
+          updatedAt: '2025-12-16T07:00:00.000Z'
         },
-        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
       }
     }
   })
@@ -246,29 +254,40 @@ export class AuthController {
       - Validate phone number format
       
       **Returns:**
-      - User profile
-      - JWT access token (store securely)
+      - Complete user profile object (without password)
+      - JWT access token as 'accessToken' (valid for 7 days - store securely)
       
       **Rate limit:** 5 registrations per hour per IP
       
-      **Next step:** Use returned token for authenticated requests
+      **Next step:** Use returned accessToken for authenticated requests
+      - Store accessToken in secure storage
+      - Include in Authorization header: Bearer {accessToken}
     `
   })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
     status: 201,
     description: 'User successfully registered',
+    type: AuthResponseDto,
     schema: {
       example: {
         success: true,
+        message: 'Registration successful',
         user: {
           id: '507f1f77bcf86cd799439011',
           email: 'user@example.com',
           phoneNumber: '+1234567890',
           fullName: 'John Doe',
-          company: 'Acme Corp'
+          company: 'Acme Corp',
+          userRole: 'contractor',
+          profilePhoto: null,
+          isEmailVerified: false,
+          isPhoneVerified: false,
+          isActive: true,
+          createdAt: '2025-12-16T07:00:00.000Z',
+          updatedAt: '2025-12-16T07:00:00.000Z'
         },
-        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
       }
     }
   })
@@ -296,25 +315,31 @@ export class AuthController {
       1. User enters phone/email and password
       2. System validates credentials
       3. Checks account status (active/suspended)
-      4. Issues JWT token (valid for 7 days)
-      5. Returns user profile and token
+      4. Updates last login timestamp
+      5. Issues JWT token (valid for 7 days)
+      6. Returns complete user profile (without password) and access token
+      
+      **Response structure:**
+      - success: true/false
+      - message: 'Login successful'
+      - user: Complete user object (id, email, phoneNumber, fullName, company, userRole, etc.)
+      - accessToken: JWT token for authenticated requests
       
       **Token usage:**
       - Include in all authenticated requests
-      - Header format: Authorization: Bearer {token}
+      - Header format: Authorization: Bearer {accessToken}
       - Token contains: userId, userRole
       - Expires after 7 days (user must re-login)
       
       **Frontend implementation:**
       \`\`\`javascript
-      // Store token securely
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('userId', response.user.id);
-      localStorage.setItem('userRole', response.user.userRole);
+      // Store token and user info securely
+      localStorage.setItem('accessToken', response.accessToken);
+      localStorage.setItem('user', JSON.stringify(response.user));
       
       // Add to requests
       headers: {
-        'Authorization': 'Bearer ' + localStorage.getItem('authToken')
+        'Authorization': 'Bearer ' + localStorage.getItem('accessToken')
       }
       \`\`\`
       
@@ -343,15 +368,27 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'User successfully logged in',
+    type: AuthResponseDto,
     schema: {
       example: {
         success: true,
+        message: 'Login successful',
         user: {
           id: '507f1f77bcf86cd799439011',
           email: 'user@example.com',
-          fullName: 'John Doe'
+          phoneNumber: '08012345678',
+          fullName: 'John Doe',
+          company: 'Acme Corp',
+          userRole: 'contractor',
+          profilePhoto: null,
+          isEmailVerified: true,
+          isPhoneVerified: true,
+          isActive: true,
+          lastLogin: '2025-12-16T10:30:00.000Z',
+          createdAt: '2025-12-01T07:00:00.000Z',
+          updatedAt: '2025-12-16T10:30:00.000Z'
         },
-        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
       }
     }
   })
@@ -385,10 +422,10 @@ export class AuthController {
     }
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - Invalid or missing token' })
-  async getProfile(@Req() req: any) {
+  async getProfile(@CurrentUser() user: UserPayload) {
     return {
       success: true,
-      user: await this.authService.getUserById(req.user.userId),
+      user: await this.authService.getUserById(user.userId),
     };
   }
 }

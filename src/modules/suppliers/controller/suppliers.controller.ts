@@ -7,8 +7,9 @@ import {
   Body,
   UseGuards,
   Query,
-  Req,
 } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { SuppliersService } from '../service/suppliers.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -69,8 +70,8 @@ export class SuppliersController {
       ]
     }
   })
-  async getIncomingRequests(@Req() req: any) {
-    const supplierId = req.user.supplierId || req.user.userId;
+  async getIncomingRequests(@CurrentUser() user: UserPayload) {
+    const supplierId = user.supplierId || user.userId;
     return this.suppliersService.getIncomingRequests(supplierId);
   }
 
@@ -160,8 +161,8 @@ export class SuppliersController {
       }
     }
   })
-  async submitQuote(@Body() submitQuoteDto: SubmitSupplierQuoteDto, @Req() req: any) {
-    const supplierId = req.user.supplierId || req.user.userId;
+  async submitQuote(@Body() submitQuoteDto: SubmitSupplierQuoteDto, @CurrentUser() user: UserPayload) {
+    const supplierId = user.supplierId || user.userId;
     return this.suppliersService.submitSupplierQuote(
       supplierId,
       submitQuoteDto.quoteId,

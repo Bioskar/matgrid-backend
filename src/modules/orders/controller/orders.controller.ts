@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from '../service/orders.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -84,8 +86,8 @@ export class OrdersController {
       }
     }
   })
-  async createOrder(@Body() createOrderDto: CreateOrderDto, @Req() req: any) {
-    const userId = req.user.userId;
+  async createOrder(@Body() createOrderDto: CreateOrderDto, @CurrentUser() user: UserPayload) {
+    const userId = user.userId;
     return this.ordersService.createOrder(userId, createOrderDto);
   }
 
@@ -138,8 +140,8 @@ export class OrdersController {
       ]
     }
   })
-  async getUserOrders(@Req() req: any) {
-    const userId = req.user.userId;
+  async getUserOrders(@CurrentUser() user: UserPayload) {
+    const userId = user.userId;
     return this.ordersService.getUserOrders(userId);
   }
 
@@ -152,8 +154,8 @@ export class OrdersController {
     status: 200,
     description: 'Order details retrieved successfully'
   })
-  async getOrderById(@Param('orderId') orderId: string, @Req() req: any) {
-    const userId = req.user.userId;
+  async getOrderById(@Param('orderId') orderId: string, @CurrentUser() user: UserPayload) {
+    const userId = user.userId;
     return this.ordersService.getOrderById(orderId, userId);
   }
 
@@ -237,9 +239,9 @@ export class OrdersController {
   async processPayment(
     @Param('orderId') orderId: string,
     @Body() paymentDto: ProcessPaymentDto,
-    @Req() req: any
+    @CurrentUser() user: UserPayload
   ) {
-    const userId = req.user.userId;
+    const userId = user.userId;
     return this.ordersService.processPayment(orderId, userId, paymentDto);
   }
 
@@ -252,8 +254,8 @@ export class OrdersController {
     status: 200,
     description: 'Order confirmation retrieved'
   })
-  async getOrderConfirmation(@Param('orderId') orderId: string, @Req() req: any) {
-    const userId = req.user.userId;
+  async getOrderConfirmation(@Param('orderId') orderId: string, @CurrentUser() user: UserPayload) {
+    const userId = user.userId;
     return this.ordersService.getOrderById(orderId, userId);
   }
 }

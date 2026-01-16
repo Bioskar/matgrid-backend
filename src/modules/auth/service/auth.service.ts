@@ -9,6 +9,7 @@ import { UserOtp } from '../entities/user-otp.entity';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
+import { UserResponseDto, AuthResponseDto } from '../dto/user-response.dto';
 import { SmsService } from '../../../common/services/sms.service';
 
 @Injectable()
@@ -70,7 +71,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate JWT token
-    const token = this.jwtService.sign({ 
+    const accessToken = this.jwtService.sign({ 
       userId: user.id,
       userRole: user.userRole,
     });
@@ -80,17 +81,14 @@ export class AuthService {
       'User registered successfully'
     );
 
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+
     return {
       success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        fullName: user.fullName,
-        company: user.company,
-        userRole: user.userRole,
-      },
-      token,
+      user: userWithoutPassword as UserResponseDto,
+      accessToken,
+      message: 'Registration successful',
     };
   }
 
@@ -133,7 +131,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate JWT token
-    const token = this.jwtService.sign({ 
+    const accessToken = this.jwtService.sign({ 
       userId: user.id,
       userRole: user.userRole,
     });
@@ -143,17 +141,14 @@ export class AuthService {
       'User logged in successfully'
     );
 
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+
     return {
       success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        fullName: user.fullName,
-        company: user.company,
-        userRole: user.userRole,
-      },
-      token,
+      user: userWithoutPassword as UserResponseDto,
+      accessToken,
+      message: 'Login successful',
     };
   }
 
@@ -360,23 +355,18 @@ export class AuthService {
 
     if (existingUser) {
       // Return existing user with token
-      const token = this.jwtService.sign({ 
+      const accessToken = this.jwtService.sign({ 
         userId: existingUser.id,
         userRole: existingUser.userRole,
       });
       
+      const { password: _, ...userWithoutPassword } = existingUser;
+      
       return {
         success: true,
         message: 'User already registered',
-        user: {
-          id: existingUser.id,
-          phoneNumber: existingUser.phoneNumber,
-          fullName: existingUser.fullName,
-          userRole: existingUser.userRole,
-          company: existingUser.company,
-          profilePhoto: existingUser.profilePhoto,
-        },
-        token,
+        user: userWithoutPassword as UserResponseDto,
+        accessToken,
       };
     }
 
@@ -394,7 +384,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate JWT token
-    const token = this.jwtService.sign({ 
+    const accessToken = this.jwtService.sign({ 
       userId: user.id,
       userRole: user.userRole,
     });
@@ -404,19 +394,14 @@ export class AuthService {
       'User registered successfully via OTP'
     );
 
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+
     return {
       success: true,
       message: 'Registration completed successfully',
-      user: {
-        id: user.id,
-        phoneNumber: user.phoneNumber,
-        fullName: user.fullName,
-        userRole: user.userRole,
-        company: user.company,
-        profilePhoto: user.profilePhoto,
-        createdAt: user.createdAt,
-      },
-      token,
+      user: userWithoutPassword as UserResponseDto,
+      accessToken,
     };
   }
 }

@@ -7,10 +7,11 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { ContractorsService } from '../service/contractors.service';
@@ -95,8 +96,8 @@ export class ContractorsController {
       }
     }
   })
-  async getProfile(@Request() req) {
-    return this.contractorsService.getContractorProfile(req.user.userId);
+  async getProfile(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getContractorProfile(user.userId);
   }
 
   @Put('profile')
@@ -143,9 +144,9 @@ export class ContractorsController {
       }
     }
   })
-  async updateProfile(@Request() req, @Body() updateDto: UpdateProfileDto) {
+  async updateProfile(@CurrentUser() user: UserPayload, @Body() updateDto: UpdateProfileDto) {
     return this.contractorsService.updateContractorProfile(
-      req.user.userId,
+      user.userId,
       updateDto,
     );
   }
@@ -153,15 +154,15 @@ export class ContractorsController {
   @Get('materials')
   @ApiOperation({ summary: 'Get contractor materials list' })
   @ApiResponse({ status: 200, description: 'Returns list of materials' })
-  async getMaterials(@Request() req) {
-    return this.contractorsService.getContractorMaterials(req.user.userId);
+  async getMaterials(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getContractorMaterials(user.userId);
   }
 
   @Get('materials/search')
   @ApiOperation({ summary: 'Search contractor materials' })
   @ApiResponse({ status: 200, description: 'Returns filtered materials' })
-  async searchMaterials(@Request() req, @Query('q') searchTerm: string) {
-    return this.contractorsService.searchMaterials(req.user.userId, searchTerm);
+  async searchMaterials(@CurrentUser() user: UserPayload, @Query('q') searchTerm: string) {
+    return this.contractorsService.searchMaterials(user.userId, searchTerm);
   }
 
   @Get('quotes')
@@ -210,15 +211,15 @@ export class ContractorsController {
       ]
     }
   })
-  async getQuotes(@Request() req) {
-    return this.contractorsService.getContractorQuotes(req.user.userId);
+  async getQuotes(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getContractorQuotes(user.userId);
   }
 
   @Get('quotes/active')
   @ApiOperation({ summary: 'Get active quotes' })
   @ApiResponse({ status: 200, description: 'Returns active quotes' })
-  async getActiveQuotes(@Request() req) {
-    return this.contractorsService.getActiveQuotes(req.user.userId);
+  async getActiveQuotes(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getActiveQuotes(user.userId);
   }
 
   @Get('quotes/:id')
@@ -286,11 +287,11 @@ export class ContractorsController {
     }
   })
   async getQuoteDetails(
-    @Request() req,
+    @CurrentUser() user: UserPayload,
     @Param('id') quoteId: string,
   ) {
     return this.contractorsService.getQuoteWithSupplierQuotes(
-      req.user.userId,
+      user.userId,
       quoteId,
     );
   }
@@ -298,8 +299,8 @@ export class ContractorsController {
   @Get('orders')
   @ApiOperation({ summary: 'Get contractor orders' })
   @ApiResponse({ status: 200, description: 'Returns list of orders' })
-  async getOrders(@Request() req) {
-    return this.contractorsService.getContractorOrders(req.user.userId);
+  async getOrders(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getContractorOrders(user.userId);
   }
 
   @Get('dashboard')
@@ -351,8 +352,8 @@ export class ContractorsController {
       }
     }
   })
-  async getDashboardStats(@Request() req) {
-    return this.contractorsService.getContractorDashboardStats(req.user.userId);
+  async getDashboardStats(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getContractorDashboardStats(user.userId);
   }
 
   // ============== PROJECT MANAGEMENT ENDPOINTS ==============
@@ -397,8 +398,8 @@ export class ContractorsController {
       },
     },
   })
-  async createProject(@Request() req, @Body() dto: CreateProjectWithBOQDto) {
-    return this.contractorsService.createProject(req.user.userId, dto);
+  async createProject(@CurrentUser() user: UserPayload, @Body() dto: CreateProjectWithBOQDto) {
+    return this.contractorsService.createProject(user.userId, dto);
   }
 
   @Post('projects/parse-boq')
@@ -588,12 +589,12 @@ export class ContractorsController {
     },
   })
   async addMaterialsToProject(
-    @Request() req,
+    @CurrentUser() user: UserPayload,
     @Param('projectId') projectId: string,
     @Body() dto: AddParsedMaterialsDto,
   ) {
     return this.contractorsService.addMaterialsToProject(
-      req.user.userId,
+      user.userId,
       projectId,
       dto.materials,
     );
@@ -645,8 +646,8 @@ export class ContractorsController {
       ],
     },
   })
-  async getProjects(@Request() req, @Query('status') status?: ProjectStatus) {
-    return this.contractorsService.getProjects(req.user.userId, status);
+  async getProjects(@CurrentUser() user: UserPayload, @Query('status') status?: ProjectStatus) {
+    return this.contractorsService.getProjects(user.userId, status);
   }
 
   @Get('projects/:projectId')
@@ -671,8 +672,8 @@ export class ContractorsController {
     status: 200,
     description: 'Project details',
   })
-  async getProjectById(@Request() req, @Param('projectId') projectId: string) {
-    return this.contractorsService.getProjectById(req.user.userId, projectId);
+  async getProjectById(@CurrentUser() user: UserPayload, @Param('projectId') projectId: string) {
+    return this.contractorsService.getProjectById(user.userId, projectId);
   }
 
   @Get('dashboard-v2')
@@ -723,8 +724,8 @@ export class ContractorsController {
       },
     },
   })
-  async getDashboardWithProjects(@Request() req) {
-    return this.contractorsService.getDashboardWithProjects(req.user.userId);
+  async getDashboardWithProjects(@CurrentUser() user: UserPayload) {
+    return this.contractorsService.getDashboardWithProjects(user.userId);
   }
 
   // ============== QUICK QUOTE ENDPOINTS ==============
@@ -806,8 +807,8 @@ export class ContractorsController {
       },
     },
   })
-  async createQuickQuote(@Request() req, @Body() dto: CreateQuickQuoteDto) {
-    return this.contractorsService.createQuickQuote(req.user.userId, dto);
+  async createQuickQuote(@CurrentUser() user: UserPayload, @Body() dto: CreateQuickQuoteDto) {
+    return this.contractorsService.createQuickQuote(user.userId, dto);
   }
 
   @Get('quotes/request-options')

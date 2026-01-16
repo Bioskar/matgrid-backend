@@ -5,8 +5,9 @@ import {
   Post,
   Body,
   UseGuards,
-  Request,
 } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SettingsService } from '../service/settings.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -63,8 +64,8 @@ export class SettingsController {
       }
     }
   })
-  async getSettings(@Request() req) {
-    return this.settingsService.getUserSettings(req.user.userId);
+  async getSettings(@CurrentUser() user: UserPayload) {
+    return this.settingsService.getUserSettings(user.userId);
   }
 
   @Put()
@@ -115,10 +116,10 @@ export class SettingsController {
     }
   })
   async updateSettings(
-    @Request() req,
+    @CurrentUser() user: UserPayload,
     @Body() updateDto: UpdateSettingsDto,
   ) {
-    return this.settingsService.updateSettings(req.user.userId, updateDto);
+    return this.settingsService.updateSettings(user.userId, updateDto);
   }
 
   @Post('change-password')
@@ -177,9 +178,9 @@ export class SettingsController {
     description: 'Invalid current password or password requirements not met'
   })
   async changePassword(
-    @Request() req,
+    @CurrentUser() user: UserPayload,
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
-    return this.settingsService.changePassword(req.user.userId, changePasswordDto);
+    return this.settingsService.changePassword(user.userId, changePasswordDto);
   }
 }

@@ -7,11 +7,12 @@ import {
   Param,
   Body,
   UseGuards,
-  Req,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import {
   ApiTags,
   ApiOperation,
@@ -193,7 +194,7 @@ export class KycController {
     }),
   )
   async uploadDocument(
-    @Req() req: any,
+    @CurrentUser() user: UserPayload,
     @UploadedFile() file: Express.Multer.File,
     @Body() uploadDto: UploadDocumentDto,
   ) {
@@ -202,7 +203,7 @@ export class KycController {
     }
 
     try {
-      return await this.kycService.uploadDocument(req.user.userId, uploadDto, file);
+      return await this.kycService.uploadDocument(user.userId, uploadDto, file);
     } catch (error) {
       // Clean up file if upload fails
       if (fs.existsSync(file.path)) {
@@ -271,8 +272,8 @@ export class KycController {
       },
     },
   })
-  async getUserDocuments(@Req() req: any) {
-    return this.kycService.getUserDocuments(req.user.userId);
+  async getUserDocuments(@CurrentUser() user: UserPayload) {
+    return this.kycService.getUserDocuments(user.userId);
   }
 
   @Get('status')
@@ -354,8 +355,8 @@ export class KycController {
       },
     },
   })
-  async getVerificationStatus(@Req() req: any) {
-    return this.kycService.getVerificationStatus(req.user.userId);
+  async getVerificationStatus(@CurrentUser() user: UserPayload) {
+    return this.kycService.getVerificationStatus(user.userId);
   }
 
   @Delete('documents/:documentId')
@@ -386,8 +387,8 @@ export class KycController {
     status: 400,
     description: 'Cannot delete verified documents',
   })
-  async deleteDocument(@Req() req: any, @Param('documentId') documentId: string) {
-    return this.kycService.deleteDocument(req.user.userId, documentId);
+  async deleteDocument(@CurrentUser() user: UserPayload, @Param('documentId') documentId: string) {
+    return this.kycService.deleteDocument(user.userId, documentId);
   }
 
   // Admin endpoints
@@ -456,10 +457,10 @@ export class KycController {
     description: 'Document verification updated',
   })
   async verifyDocument(
-    @Req() req: any,
+    @CurrentUser() user: UserPayload,
     @Param('documentId') documentId: string,
     @Body() verifyDto: VerifyDocumentDto,
   ) {
-    return this.kycService.verifyDocument(documentId, verifyDto, req.user.userId);
+    return this.kycService.verifyDocument(documentId, verifyDto, user.userId);
   }
 }

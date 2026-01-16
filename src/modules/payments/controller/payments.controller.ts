@@ -3,8 +3,9 @@ import {
   Get,
   Query,
   UseGuards,
-  Request,
 } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { PaymentsService } from '../service/payments.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -100,10 +101,10 @@ export class PaymentsController {
     }
   })
   async getPayments(
-    @Request() req,
+    @CurrentUser() user: UserPayload,
     @Query('direction') direction?: PaymentDirection,
   ) {
-    return this.paymentsService.getUserPayments(req.user.userId, direction);
+    return this.paymentsService.getUserPayments(user.userId, direction);
   }
 
   @Get('stats')
@@ -136,7 +137,7 @@ export class PaymentsController {
       }
     }
   })
-  async getPaymentStats(@Request() req) {
-    return this.paymentsService.getPaymentStats(req.user.userId);
+  async getPaymentStats(@CurrentUser() user: UserPayload) {
+    return this.paymentsService.getPaymentStats(user.userId);
   }
 }

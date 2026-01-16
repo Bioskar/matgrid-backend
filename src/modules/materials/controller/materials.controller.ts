@@ -7,10 +7,11 @@ import {
   Body,
   Param,
   UseGuards,
-  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MaterialsService } from '../service/materials.service';
@@ -82,18 +83,18 @@ export class MaterialsController {
       }
     }
   })
-  async createQuote(@Req() req: any, @Body() createQuoteDto: CreateQuoteDto) {
-    return this.materialsService.createQuote(req.user.userId, createQuoteDto);
+  async createQuote(@CurrentUser() user: UserPayload, @Body() createQuoteDto: CreateQuoteDto) {
+    return this.materialsService.createQuote(user.userId, createQuoteDto);
   }
 
   @Get('quotes')
-  async getUserQuotes(@Req() req: any) {
-    return this.materialsService.getUserQuotes(req.user.userId);
+  async getUserQuotes(@CurrentUser() user: UserPayload) {
+    return this.materialsService.getUserQuotes(user.userId);
   }
 
   @Get('quotes/:quoteId')
-  async getQuote(@Req() req: any, @Param('quoteId') quoteId: string) {
-    return this.materialsService.getQuote(quoteId, req.user.userId);
+  async getQuote(@CurrentUser() user: UserPayload, @Param('quoteId') quoteId: string) {
+    return this.materialsService.getQuote(quoteId, user.userId);
   }
 
   @Put('quotes/:quoteId/status')
