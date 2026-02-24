@@ -45,6 +45,12 @@ export class User {
   @Column({ type: 'boolean', default: false })
   isPhoneVerified: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  twoFactorEnabled: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  refreshToken?: string;
+
   @Column({ type: 'timestamp', nullable: true })
   lastLogin?: Date;
 

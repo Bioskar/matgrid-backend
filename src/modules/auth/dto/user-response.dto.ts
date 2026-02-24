@@ -61,6 +61,12 @@ export class UserResponseDto {
   isPhoneVerified: boolean;
 
   @ApiProperty({ 
+    example: false,
+    description: 'Whether two-factor authentication is enabled'
+  })
+  twoFactorEnabled: boolean;
+
+  @ApiProperty({ 
     example: true,
     description: 'Whether account is active'
   })
@@ -104,6 +110,13 @@ export class AuthResponseDto {
     description: 'JWT access token (valid for 7 days)'
   })
   accessToken: string;
+
+  @ApiProperty({ 
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'JWT refresh token (valid for 30 days)',
+    required: false
+  })
+  refreshToken?: string;
 
   @ApiProperty({ 
     example: 'Login successful',

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Headers, Put, Param } from '@nestjs/common';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
@@ -7,6 +7,8 @@ import { AuthService } from '../service/auth.service';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
+import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto';
+import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { AuthResponseDto, UserResponseDto } from '../dto/user-response.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
@@ -427,5 +429,219 @@ export class AuthController {
       success: true,
       user: await this.authService.getUserById(user.userId),
     };
+  }
+
+  @Post('refresh')
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: `
+      **Generates a new access token using a valid refresh token**
+      
+      **Process:**
+      1. Client sends refresh token
+      2. System validates refresh token
+      3. Verifies token hasn't been revoked
+      4. Issues new access and refresh tokens
+      
+      **Token lifecycle:**
+      - Access token: Valid for 7 days
+      - Refresh token: Valid for 30 days
+      - Refresh tokens are single-use (new one issued on refresh)
+      
+      **Frontend implementation:**
+      \`\`\`javascript
+      async function refreshAccessToken() {
+        const refreshToken = localStorage.getItem('refreshToken');
+        
+        const response = await fetch('/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+        
+        const data = await response.json();
+        
+        // Store new tokens
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        
+        return data;
+      }
+      \`\`\`
+      
+      **Error handling:**
+      - 401: Invalid refresh token → Redirect to login
+      - 401: Token expired → Redirect to login
+      - 401: Token revoked → Redirect to login
+    `
+  })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed successfully',
+    schema: {
+      example: {
+        success: true,
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        message: 'Token refreshed successfully'
+      }
+    }
+  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refreshToken(refreshTokenDto);
+  }
+
+  @Post('send-signin-otp')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Send OTP for sign-in (2FA)',
+    description: `
+      **Sends OTP for two-factor authentication during login**
+      
+      **Prerequisites:**
+      - User must have 2FA enabled
+      - Valid email/phone and password
+      
+      **Process:**
+      1. User enters credentials (email/phone + password)
+      2. System validates credentials
+      3. Checks if 2FA is enabled
+      4. Sends 6-digit OTP via SMS
+      5. Returns tempToken for OTP verification
+      
+      **Use case:**
+      - When login returns \`requires2FA: true\`
+      - User must verify OTP to complete login
+      
+      **Rate limits:**
+      - 3 OTP requests per minute per IP
+      - 1 OTP per account per minute
+      
+      **Next step:** Call POST /verify-signin-otp with OTP code
+    `
+  })
+  @ApiBody({ type: SendSignInOtpDto })
+  @ApiResponse({
+    status: 201,
+    description: 'OTP sent successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'OTP sent to your phone number',
+        emailOrPhone: 'john@example.com',
+        expiresAt: '2026-02-24T08:10:00.000Z'
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: '2FA not enabled or invalid credentials' })
+  async sendSignInOtp(@Body() sendSignInOtpDto: SendSignInOtpDto) {
+    return this.authService.sendSignInOtp(sendSignInOtpDto);
+  }
+
+  @Post('verify-signin-otp')
+  @Throttle({ default: { limit: 5, ttl: 60 } })
+  @ApiOperation({
+    summary: 'Verify sign-in OTP (2FA)',
+    description: `
+      **Completes login by verifying 2FA OTP**
+      
+      **Process:**
+      1. User enters 6-digit OTP from SMS
+      2. System validates OTP
+      3. Issues access and refresh tokens
+      4. Returns user profile and tokens
+      
+      **OTP validation:**
+      - Must be exactly 6 digits
+      - Valid for 10 minutes
+      - Maximum 3 attempts
+      - Single-use only
+      
+      **Success response includes:**
+      - User profile
+      - Access token (7 days validity)
+      - Refresh token (30 days validity)
+      
+      **Frontend implementation:**
+      - Store both tokens securely
+      - Redirect to dashboard based on userRole
+      - Clear tempToken from memory
+    `
+  })
+  @ApiBody({ type: VerifySignInOtpDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    type: AuthResponseDto,
+    schema: {
+      example: {
+        success: true,
+        message: 'Login successful',
+        user: {
+          id: '507f1f77bcf86cd799439011',
+          email: 'john@example.com',
+          phoneNumber: '08012345678',
+          fullName: 'John Doe',
+          userRole: 'contractor',
+          twoFactorEnabled: true
+        },
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
+  async verifySignInOtp(@Body() verifySignInOtpDto: VerifySignInOtpDto) {
+    return this.authService.verifySignInOtp(verifySignInOtpDto);
+  }
+
+  @Put('toggle-2fa/:enable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Enable or disable two-factor authentication',
+    description: `
+      **Toggles 2FA for the authenticated user**
+      
+      **Requirements:**
+      - User must be authenticated
+      - Phone number required to enable 2FA
+      
+      **Process:**
+      1. User requests to enable/disable 2FA
+      2. System validates user has phone number (for enable)
+      3. Updates user's 2FA setting
+      
+      **When enabled:**
+      - Login will require OTP verification
+      - User receives SMS with 6-digit code
+      - Must verify OTP to complete login
+      
+      **When disabled:**
+      - Login with password only
+      - No OTP required
+    `
+  })
+  @ApiResponse({
+    status: 200,
+    description: '2FA setting updated',
+    schema: {
+      example: {
+        success: true,
+        message: 'Two-factor authentication enabled successfully',
+        twoFactorEnabled: true
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Phone number required to enable 2FA' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async toggleTwoFactor(
+    @CurrentUser() user: UserPayload,
+    @Param('enable') enable: string,
+  ) {
+    const enableBool = enable === 'true' || enable === '1';
+    return this.authService.toggleTwoFactor(user.userId, enableBool);
   }
 }

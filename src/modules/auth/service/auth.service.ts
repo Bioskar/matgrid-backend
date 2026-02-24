@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Inject } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -9,6 +9,8 @@ import { UserOtp } from '../entities/user-otp.entity';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
+import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto';
+import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserResponseDto, AuthResponseDto } from '../dto/user-response.dto';
 import { SmsService } from '../../../common/services/sms.service';
 
@@ -70,11 +72,8 @@ export class AuthService {
     // Save to database
     await this.userRepository.save(user);
 
-    // Generate JWT token
-    const accessToken = this.jwtService.sign({ 
-      userId: user.id,
-      userRole: user.userRole,
-    });
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.userRole);
 
     this.logger.info(
       { userId: user.id, email: user.email, method: email ? 'email' : 'phone' },
@@ -82,12 +81,13 @@ export class AuthService {
     );
 
     // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, refreshToken: __, ...userWithoutPassword } = user;
 
     return {
       success: true,
       user: userWithoutPassword as UserResponseDto,
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       message: 'Registration successful',
     };
   }
@@ -126,15 +126,30 @@ export class AuthService {
       throw new BadRequestException('Invalid password');
     }
 
+    // Check if 2FA is enabled
+    if (user.twoFactorEnabled) {
+      // Generate temporary token for 2FA verification
+      const tempToken = this.jwtService.sign(
+        { userId: user.id, type: '2fa', emailOrPhone },
+        { expiresIn: '15m' }
+      );
+
+      this.logger.info({ userId: user.id }, 'Login: 2FA required');
+
+      return {
+        success: true,
+        message: 'Two-factor authentication required',
+        requires2FA: true,
+        tempToken,
+      };
+    }
+
     // Update last login timestamp
     user.lastLogin = new Date();
     await this.userRepository.save(user);
 
-    // Generate JWT token
-    const accessToken = this.jwtService.sign({ 
-      userId: user.id,
-      userRole: user.userRole,
-    });
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.userRole);
 
     this.logger.info(
       { userId: user.id, email: user.email, method: emailOrPhone.includes('@') ? 'email' : 'phone' },
@@ -142,12 +157,13 @@ export class AuthService {
     );
 
     // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, refreshToken: __, ...userWithoutPassword } = user;
 
     return {
       success: true,
       user: userWithoutPassword as UserResponseDto,
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       message: 'Login successful',
     };
   }
@@ -354,19 +370,17 @@ export class AuthService {
     });
 
     if (existingUser) {
-      // Return existing user with token
-      const accessToken = this.jwtService.sign({ 
-        userId: existingUser.id,
-        userRole: existingUser.userRole,
-      });
+      // Return existing user with tokens
+      const tokens = await this.generateTokens(existingUser.id, existingUser.userRole);
       
-      const { password: _, ...userWithoutPassword } = existingUser;
+      const { password: _, refreshToken: __, ...userWithoutPassword } = existingUser;
       
       return {
         success: true,
         message: 'User already registered',
         user: userWithoutPassword as UserResponseDto,
-        accessToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
       };
     }
 
@@ -383,11 +397,8 @@ export class AuthService {
 
     await this.userRepository.save(user);
 
-    // Generate JWT token
-    const accessToken = this.jwtService.sign({ 
-      userId: user.id,
-      userRole: user.userRole,
-    });
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.userRole);
 
     this.logger.info(
       { userId: user.id, phoneNumber: user.phoneNumber, userRole: user.userRole },
@@ -395,13 +406,264 @@ export class AuthService {
     );
 
     // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, refreshToken: __, ...userWithoutPassword } = user;
 
     return {
       success: true,
       message: 'Registration completed successfully',
       user: userWithoutPassword as UserResponseDto,
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  /**
+   * Helper method to generate access and refresh tokens
+   */
+  private async generateTokens(userId: string, userRole: string) {
+    const accessToken = this.jwtService.sign(
+      { userId, userRole },
+      { expiresIn: '7d' }
+    );
+
+    const refreshToken = this.jwtService.sign(
+      { userId, type: 'refresh' },
+      { expiresIn: '30d' }
+    );
+
+    // Hash and store refresh token
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.userRepository.update(userId, { refreshToken: hashedRefreshToken });
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshToken(refreshTokenDto: RefreshTokenDto) {
+    const { refreshToken } = refreshTokenDto;
+
+    try {
+      // Verify refresh token
+      const payload = this.jwtService.verify(refreshToken);
+
+      if (payload.type !== 'refresh') {
+        throw new UnauthorizedException('Invalid token type');
+      }
+
+      // Find user
+      const user = await this.userRepository.findOne({
+        where: { id: payload.userId },
+      });
+
+      if (!user || !user.refreshToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Verify refresh token matches stored hash
+      const isValidRefreshToken = await bcrypt.compare(refreshToken, user.refreshToken);
+
+      if (!isValidRefreshToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Generate new tokens
+      const tokens = await this.generateTokens(user.id, user.userRole);
+
+      this.logger.info({ userId: user.id }, 'Token refreshed successfully');
+
+      return {
+        success: true,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        message: 'Token refreshed successfully',
+      };
+    } catch (error) {
+      this.logger.warn({ error: error.message }, 'Token refresh failed');
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+  }
+
+  /**
+   * Send OTP for sign-in (2FA)
+   */
+  async sendSignInOtp(sendSignInOtpDto: SendSignInOtpDto) {
+    const { emailOrPhone, password } = sendSignInOtpDto;
+
+    // Find user by email or phone number
+    const user = await this.userRepository.findOne({
+      where: [
+        { email: emailOrPhone.toLowerCase() },
+        { phoneNumber: emailOrPhone },
+      ],
+    });
+
+    if (!user) {
+      this.logger.warn({ attemptedCredential: emailOrPhone }, 'SignIn OTP: User not found');
+      throw new BadRequestException('User not found');
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      this.logger.warn({ userId: user.id }, 'SignIn OTP: Invalid password');
+      throw new BadRequestException('Invalid password');
+    }
+
+    // Check if 2FA is enabled
+    if (!user.twoFactorEnabled) {
+      throw new BadRequestException('Two-factor authentication is not enabled for this account');
+    }
+
+    // Check for recent OTP requests (rate limiting - 1 per minute)
+    const recentOtp = await this.otpRepository.findOne({
+      where: {
+        phoneNumber: user.phoneNumber || emailOrPhone,
+        createdAt: MoreThan(new Date(Date.now() - 60000)),
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (recentOtp) {
+      const waitTime = Math.ceil((60000 - (Date.now() - recentOtp.createdAt.getTime())) / 1000);
+      throw new BadRequestException(`Please wait ${waitTime} seconds before requesting another OTP`);
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60000);
+
+    // Save OTP to database
+    const otpEntity = this.otpRepository.create({
+      phoneNumber: user.phoneNumber || emailOrPhone,
+      otp,
+      expiresAt,
+      verified: false,
+      attempts: 0,
+    });
+
+    await this.otpRepository.save(otpEntity);
+
+    // Send OTP via SMS or Email
+    const phoneNumber = user.phoneNumber || user.email;
+    const smsSent = phoneNumber && phoneNumber.match(/^[0-9+\-\s()]+$/)
+      ? await this.smsService.sendOtp(phoneNumber, otp)
+      : false;
+
+    if (!smsSent && process.env.NODE_ENV === 'development') {
+      this.logger.info({ emailOrPhone, otp }, 'SignIn OTP generated (DEV MODE)');
+    }
+
+    return {
+      success: true,
+      message: smsSent 
+        ? 'OTP sent to your phone number'
+        : 'OTP generated (SMS disabled - DEV MODE ONLY)',
+      emailOrPhone,
+      expiresAt,
+      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp }),
+    };
+  }
+
+  /**
+   * Verify sign-in OTP and complete login (2FA)
+   */
+  async verifySignInOtp(verifySignInOtpDto: VerifySignInOtpDto) {
+    const { emailOrPhone, otp } = verifySignInOtpDto;
+
+    // Find user
+    const user = await this.userRepository.findOne({
+      where: [
+        { email: emailOrPhone.toLowerCase() },
+        { phoneNumber: emailOrPhone },
+      ],
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Find latest non-verified OTP
+    const otpEntity = await this.otpRepository.findOne({
+      where: {
+        phoneNumber: user.phoneNumber || emailOrPhone,
+        verified: false,
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!otpEntity) {
+      throw new BadRequestException('No OTP found for this account');
+    }
+
+    // Check if OTP expired
+    if (new Date() > otpEntity.expiresAt) {
+      throw new BadRequestException('OTP has expired. Please request a new one');
+    }
+
+    // Check max attempts
+    if (otpEntity.attempts >= 3) {
+      throw new BadRequestException('Maximum verification attempts exceeded. Please request a new OTP');
+    }
+
+    // Verify OTP
+    if (otpEntity.otp !== otp) {
+      otpEntity.attempts += 1;
+      await this.otpRepository.save(otpEntity);
+      throw new BadRequestException(`Invalid OTP. ${3 - otpEntity.attempts} attempts remaining`);
+    }
+
+    // Mark as verified
+    otpEntity.verified = true;
+    await this.otpRepository.save(otpEntity);
+
+    // Update last login timestamp
+    user.lastLogin = new Date();
+    await this.userRepository.save(user);
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.userRole);
+
+    this.logger.info({ userId: user.id }, 'User logged in successfully with 2FA');
+
+    // Return user without password
+    const { password: _, refreshToken: __, ...userWithoutPassword } = user;
+
+    return {
+      success: true,
+      message: 'Login successful',
+      user: userWithoutPassword as UserResponseDto,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  /**
+   * Enable/disable two-factor authentication for user
+   */
+  async toggleTwoFactor(userId: string, enable: boolean) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Verify user has phone number for 2FA
+    if (enable && !user.phoneNumber) {
+      throw new BadRequestException('Phone number required to enable two-factor authentication');
+    }
+
+    user.twoFactorEnabled = enable;
+    await this.userRepository.save(user);
+
+    this.logger.info({ userId, enable }, '2FA toggled');
+
+    return {
+      success: true,
+      message: `Two-factor authentication ${enable ? 'enabled' : 'disabled'} successfully`,
+      twoFactorEnabled: enable,
     };
   }
 }
