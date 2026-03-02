@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import * as pdfParse from 'pdf-parse';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 
 @Injectable()
 export class FileParserService {

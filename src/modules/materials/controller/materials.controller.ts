@@ -22,7 +22,7 @@ import { AddMaterialDto } from '../dto/add-material.dto';
 import { PasteMaterialsDto } from '../dto/paste-materials.dto';
 import { FileParserService } from '../../../common/parsers/file-parser.service';
 import { diskStorage } from 'multer';
-import * as path from 'path';
+import * as path from 'node:path';
 
 @ApiTags('Materials')
 @ApiBearerAuth('JWT-auth')

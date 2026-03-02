@@ -8,7 +8,7 @@ import { createBootstrapLogger, FilteredPinoLoggerService } from './config/logge
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
-import { networkInterfaces } from 'os';
+import { networkInterfaces } from 'node:os';
 
 dotenv.config();
 
