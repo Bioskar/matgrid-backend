@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from '../../auth/entities/user.entity.ts';
+import { User } from '../../auth/entities/user.entity';
 
 export enum DocumentType {
   NIN_SLIP = 'nin_slip',

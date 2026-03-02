@@ -7,7 +7,7 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import { User } from '../../auth/entities/user.entity.ts';
+import { User } from '../../auth/entities/user.entity';
 
 export enum PaymentType {
   PAYMENT = 'payment',

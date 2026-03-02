@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
-import { Quote } from '../../quotes/entities/quote.entity.ts';
+import { Quote } from '../../quotes/entities/quote.entity';
 
 @Entity('materials')
 @Index(['quoteId']) // Index for quote lookups - most common query

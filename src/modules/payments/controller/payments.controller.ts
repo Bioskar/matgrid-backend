@@ -4,12 +4,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator.ts';
-import { UserPayload } from '../../../common/interfaces/user-payload.interface.ts';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
-import { PaymentsService } from '../service/payments.service.ts';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
-import { PaymentDirection } from '../entities/payment.entity.ts';
+import { PaymentsService } from '../service/payments.service';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { PaymentDirection } from '../entities/payment.entity';
 
 @ApiTags('Payments')
 @ApiBearerAuth()

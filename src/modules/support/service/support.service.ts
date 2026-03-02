@@ -2,7 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import pino from 'pino';
-import { Faq } from '../entities/faq.entity.ts';
+import { Faq } from '../entities/faq.entity';
 
 @Injectable()
 export class SupportService {

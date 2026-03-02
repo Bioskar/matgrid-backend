@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { KycDocument, DocumentType, VerificationStatus } from '../entities/kyc-document.entity.ts';
-import { UploadDocumentDto, VerifyDocumentDto } from '../dto/upload-document.dto.ts';
+import { KycDocument, DocumentType, VerificationStatus } from '../entities/kyc-document.entity';
+import { UploadDocumentDto, VerifyDocumentDto } from '../dto/upload-document.dto';
 import * as pino from 'pino';
 
 @Injectable()

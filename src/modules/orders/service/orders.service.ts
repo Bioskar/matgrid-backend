@@ -2,9 +2,9 @@ import { Injectable, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import pino from 'pino';
-import { Order } from '../entities/order.entity.ts';
-import { OrderItem } from '../entities/order-item.entity.ts';
-import { CreateOrderDto, ProcessPaymentDto } from '../dto/create-order.dto.ts';
+import { Order } from '../entities/order.entity';
+import { OrderItem } from '../entities/order-item.entity';
+import { CreateOrderDto, ProcessPaymentDto } from '../dto/create-order.dto';
 
 @Injectable()
 export class OrdersService {

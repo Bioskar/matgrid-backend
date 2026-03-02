@@ -2,7 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import pino from 'pino';
-import { Payment, PaymentDirection } from '../entities/payment.entity.ts';
+import { Payment, PaymentDirection } from '../entities/payment.entity';
 
 @Injectable()
 export class PaymentsService {

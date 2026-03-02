@@ -6,13 +6,13 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator.ts';
-import { UserPayload } from '../../../common/interfaces/user-payload.interface.ts';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { SettingsService } from '../service/settings.service.ts';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
-import { UpdateSettingsDto } from '../dto/update-settings.dto.ts';
-import { ChangePasswordDto } from '../dto/change-password.dto.ts';
+import { SettingsService } from '../service/settings.service';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { UpdateSettingsDto } from '../dto/update-settings.dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
 
 @ApiTags('Settings')
 @ApiBearerAuth()

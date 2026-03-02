@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { createBootstrapLogger } from '../../config/logger.config.ts';
+import { createBootstrapLogger } from '../../config/logger.config';
 
 
 @Module({

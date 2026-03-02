@@ -3,10 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import pino from 'pino';
 import * as bcrypt from 'bcryptjs';
-import { UserSettings } from '../entities/user-settings.entity.ts';
-import { User } from '../../auth/entities/user.entity.ts';
-import { UpdateSettingsDto } from '../dto/update-settings.dto.ts';
-import { ChangePasswordDto } from '../dto/change-password.dto.ts';
+import { UserSettings } from '../entities/user-settings.entity';
+import { User } from '../../auth/entities/user.entity';
+import { UpdateSettingsDto } from '../dto/update-settings.dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
 
 @Injectable()
 export class SettingsService {
