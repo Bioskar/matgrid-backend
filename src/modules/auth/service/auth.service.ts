@@ -4,15 +4,15 @@ import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import pino from 'pino';
 import * as bcrypt from 'bcryptjs';
-import { User, UserRole } from '../entities/user.entity';
-import { UserOtp } from '../entities/user-otp.entity';
-import { RegisterDto } from '../dto/register.dto';
-import { LoginDto } from '../dto/login.dto';
-import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
-import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto';
-import { RefreshTokenDto } from '../dto/refresh-token.dto';
-import { UserResponseDto, AuthResponseDto } from '../dto/user-response.dto';
-import { SmsService } from '../../../common/services/sms.service';
+import { User, UserRole } from '../entities/user.entity.ts';
+import { UserOtp } from '../entities/user-otp.entity.ts';
+import { RegisterDto } from '../dto/register.dto.ts';
+import { LoginDto } from '../dto/login.dto.ts';
+import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto.ts';
+import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto.ts';
+import { RefreshTokenDto } from '../dto/refresh-token.dto.ts';
+import { UserResponseDto, AuthResponseDto } from '../dto/user-response.dto.ts';
+import { SmsService } from '../../../common/services/sms.service.ts';
 
 @Injectable()
 export class AuthService {

@@ -2,19 +2,19 @@ import { Injectable, NotFoundException, BadRequestException, Inject } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import pino from 'pino';
-import { Contractor } from '../entities/contractor.entity';
-import { User, UserRole } from '../../auth/entities/user.entity';
-import { Material } from '../../quotes/entities/material.entity';
-import { Quote } from '../../quotes/entities/quote.entity';
-import { SupplierQuote } from '../../suppliers/entities/supplier-quote.entity';
-import { Order } from '../../orders/entities/order.entity';
-import { ContractorProject, ProjectStatus } from '../entities/project.entity';
-import { CreateContractorProjectDto } from '../dto/create-contractor-project.dto';
-import { UpdateProfileDto } from '../dto/update-profile.dto';
-import { CreateProjectWithBOQDto, ParsedMaterialItem } from '../dto/boq-parse.dto';
-import { CreateQuickQuoteDto } from '../dto/quick-quote.dto';
-import { KycService } from '../../kyc/service/kyc.service';
-import { BOQParserService } from './boq-parser.service';
+import { Contractor } from '../entities/contractor.entity.ts';
+import { User, UserRole } from '../../auth/entities/user.entity.ts';
+import { Material } from '../../quotes/entities/material.entity.ts';
+import { Quote } from '../../quotes/entities/quote.entity.ts';
+import { SupplierQuote } from '../../suppliers/entities/supplier-quote.entity.ts';
+import { Order } from '../../orders/entities/order.entity.ts';
+import { ContractorProject, ProjectStatus } from '../entities/project.entity.ts';
+import { CreateContractorProjectDto } from '../dto/create-contractor-project.dto.ts';
+import { UpdateProfileDto } from '../dto/update-profile.dto.ts';
+import { CreateProjectWithBOQDto, ParsedMaterialItem } from '../dto/boq-parse.dto.ts';
+import { CreateQuickQuoteDto } from '../dto/quick-quote.dto.ts';
+import { KycService } from '../../kyc/service/kyc.service.ts';
+import { BOQParserService } from './boq-parser.service.ts';
 
 @Injectable()
 export class ContractorsService {

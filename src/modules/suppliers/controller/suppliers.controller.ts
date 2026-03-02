@@ -8,13 +8,13 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { UserPayload } from '../../../common/interfaces/user-payload.interface';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator.ts';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface.ts';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
-import { SuppliersService } from '../service/suppliers.service';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CreateSupplierQuoteDto } from '../dto/create-supplier-quote.dto';
-import { SubmitSupplierQuoteDto } from '../dto/submit-quote.dto';
+import { SuppliersService } from '../service/suppliers.service.ts';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
+import { CreateSupplierQuoteDto } from '../dto/create-supplier-quote.dto.ts';
+import { SubmitSupplierQuoteDto } from '../dto/submit-quote.dto.ts';
 
 @ApiTags('Suppliers')
 @ApiBearerAuth('JWT-auth')

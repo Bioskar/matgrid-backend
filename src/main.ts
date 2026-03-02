@@ -1,10 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.ts';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
-import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
-import { createBootstrapLogger, FilteredPinoLoggerService } from './config/logger.config';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter.ts';
+import { createBootstrapLogger, FilteredPinoLoggerService } from './config/logger.config.ts';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';

@@ -8,7 +8,7 @@ import {
   OneToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
+import { User } from '../../auth/entities/user.entity.ts';
 
 @Entity('contractors')
 @Index('IDX_contractor_is_active', ['isActive'])

@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
-import { Quote } from '../../quotes/entities/quote.entity';
-import { Supplier } from './supplier.entity';
+import { Quote } from '../../quotes/entities/quote.entity.ts';
+import { Supplier } from './supplier.entity.ts';
 
 export interface SupplierQuoteMaterial {
   materialId?: string;

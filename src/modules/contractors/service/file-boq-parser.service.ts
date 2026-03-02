@@ -1,8 +1,8 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { Logger } from 'pino';
 import * as XLSX from 'xlsx';
-import { ParsedMaterialItem } from '../dto/boq-parse.dto';
-import { BOQParserService } from './boq-parser.service';
+import { ParsedMaterialItem } from '../dto/boq-parse.dto.ts';
+import { BOQParserService } from './boq-parser.service.ts';
 
 @Injectable()
 export class FileBOQParserService {

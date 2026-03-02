@@ -10,17 +10,17 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { UserPayload } from '../../../common/interfaces/user-payload.interface';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator.ts';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface.ts';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { MaterialsService } from '../service/materials.service';
-import { Material } from '../../quotes/entities/material.entity';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CreateQuoteDto } from '../../quotes/dto/create-quote.dto';
-import { AddMaterialDto } from '../dto/add-material.dto';
-import { PasteMaterialsDto } from '../dto/paste-materials.dto';
-import { FileParserService } from '../../../common/parsers/file-parser.service';
+import { MaterialsService } from '../service/materials.service.ts';
+import { Material } from '../../quotes/entities/material.entity.ts';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
+import { CreateQuoteDto } from '../../quotes/dto/create-quote.dto.ts';
+import { AddMaterialDto } from '../dto/add-material.dto.ts';
+import { PasteMaterialsDto } from '../dto/paste-materials.dto.ts';
+import { FileParserService } from '../../../common/parsers/file-parser.service.ts';
 import { diskStorage } from 'multer';
 import * as path from 'node:path';
 

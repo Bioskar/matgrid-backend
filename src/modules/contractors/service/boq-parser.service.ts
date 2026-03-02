@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Logger } from 'pino';
-import { ParseBOQDto, ParsedMaterialItem, ParseBOQResponseDto } from '../dto/boq-parse.dto';
+import { ParseBOQDto, ParsedMaterialItem, ParseBOQResponseDto } from '../dto/boq-parse.dto.ts';
 
 interface MaterialPattern {
   name: string;

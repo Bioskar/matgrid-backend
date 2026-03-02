@@ -1,6 +1,6 @@
 import { IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AddMaterialDto } from './add-material.dto';
+import { AddMaterialDto } from './add-material.dto.ts';
 
 export class PasteMaterialsDto {
   @IsArray()

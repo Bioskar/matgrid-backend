@@ -10,26 +10,26 @@ import {
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { UserPayload } from '../../../common/interfaces/user-payload.interface';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator.ts';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface.ts';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiConsumes } from '@nestjs/swagger';
-import { ContractorsService } from '../service/contractors.service';
-import { BOQParserService } from '../service/boq-parser.service';
-import { FileBOQParserService } from '../service/file-boq-parser.service';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../../common/guards/roles.guard';
-import { Roles } from '../../../common/decorators/roles.decorator';
-import { UserRole } from '../../auth/entities/user.entity';
-import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { ContractorsService } from '../service/contractors.service.ts';
+import { BOQParserService } from '../service/boq-parser.service.ts';
+import { FileBOQParserService } from '../service/file-boq-parser.service.ts';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
+import { RolesGuard } from '../../../common/guards/roles.guard.ts';
+import { Roles } from '../../../common/decorators/roles.decorator.ts';
+import { UserRole } from '../../auth/entities/user.entity.ts';
+import { UpdateProfileDto } from '../dto/update-profile.dto.ts';
 import {
   CreateProjectWithBOQDto,
   ParseBOQDto,
   AddParsedMaterialsDto,
-} from '../dto/boq-parse.dto';
-import { UploadBOQFileDto } from '../dto/upload-boq.dto';
-import { CreateQuickQuoteDto } from '../dto/quick-quote.dto';
-import { ProjectStatus } from '../entities/project.entity';
+} from '../dto/boq-parse.dto.ts';
+import { UploadBOQFileDto } from '../dto/upload-boq.dto.ts';
+import { CreateQuickQuoteDto } from '../dto/quick-quote.dto.ts';
+import { ProjectStatus } from '../entities/project.entity.ts';
 
 @ApiTags('Contractors')
 @ApiBearerAuth()

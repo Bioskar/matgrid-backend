@@ -1,7 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
-import { Order } from './order.entity';
-import { Supplier } from '../../suppliers/entities/supplier.entity';
-import { Material } from '../../quotes/entities/material.entity';
+import { Order } from './order.entity.ts';
+import { Supplier } from '../../suppliers/entities/supplier.entity.ts';
+import { Material } from '../../quotes/entities/material.entity.ts';
 
 @Entity('order_items')
 @Index(['orderId'])

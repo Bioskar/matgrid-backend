@@ -8,8 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { QuotesService } from '../service/quotes.service';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { QuotesService } from '../service/quotes.service.ts';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
 
 @ApiTags('Quotes')
 @ApiBearerAuth('JWT-auth')

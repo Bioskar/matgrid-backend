@@ -1,6 +1,6 @@
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { DocumentType } from '../entities/kyc-document.entity';
+import { DocumentType } from '../entities/kyc-document.entity.ts';
 
 export class UploadDocumentDto {
   @ApiProperty({

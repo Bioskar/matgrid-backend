@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
-import { OrderItem } from './order-item.entity';
+import { User } from '../../auth/entities/user.entity.ts';
+import { OrderItem } from './order-item.entity.ts';
 
 @Entity('orders')
 @Index(['userId'])

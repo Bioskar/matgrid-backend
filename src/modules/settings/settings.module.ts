@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { SettingsController } from './controller/settings.controller';
-import { SettingsService } from './service/settings.service';
-import { UserSettings } from './entities/user-settings.entity';
-import { User } from '../auth/entities/user.entity';
-import { LoggerProviderModule } from '../../common/modules/logger.module';
+import { SettingsController } from './controller/settings.controller.ts';
+import { SettingsService } from './service/settings.service.ts';
+import { UserSettings } from './entities/user-settings.entity.ts';
+import { User } from '../auth/entities/user.entity.ts';
+import { LoggerProviderModule } from '../../common/modules/logger.module.ts';
 
 @Module({
   imports: [

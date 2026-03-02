@@ -1,16 +1,16 @@
 import { Controller, Post, Get, Body, UseGuards, Headers, Put, Param } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { UserPayload } from '../../../common/interfaces/user-payload.interface';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator.ts';
+import { UserPayload } from '../../../common/interfaces/user-payload.interface.ts';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthService } from '../service/auth.service';
-import { RegisterDto } from '../dto/register.dto';
-import { LoginDto } from '../dto/login.dto';
-import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
-import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto';
-import { RefreshTokenDto } from '../dto/refresh-token.dto';
-import { AuthResponseDto, UserResponseDto } from '../dto/user-response.dto';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { AuthService } from '../service/auth.service.ts';
+import { RegisterDto } from '../dto/register.dto.ts';
+import { LoginDto } from '../dto/login.dto.ts';
+import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto.ts';
+import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto.ts';
+import { RefreshTokenDto } from '../dto/refresh-token.dto.ts';
+import { AuthResponseDto, UserResponseDto } from '../dto/user-response.dto.ts';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.ts';
 
 @ApiTags('Authentication')
 @Controller('auth')

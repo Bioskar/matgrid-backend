@@ -9,8 +9,8 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
-import { Quote } from '../../quotes/entities/quote.entity';
+import { User } from '../../auth/entities/user.entity.ts';
+import { Quote } from '../../quotes/entities/quote.entity.ts';
 
 export enum ProjectStatus {
   DRAFT = 'draft',
