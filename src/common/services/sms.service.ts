@@ -9,7 +9,9 @@ export class SmsService {
   private termiiApiKey: string;
   private termiiSenderId: string;
   private termiiEnabled: boolean;
-  private termiiApiUrl = 'https://api.ng.termii.com/api/sms/send';
+  private termiiBaseUrl: string;
+  private termiiOtpUrl: string;
+  private termiiVerifyUrl: string;
 
   // Twilio configuration (for international numbers)
   private twilioAccountSid: string;
@@ -25,6 +27,9 @@ export class SmsService {
     // Initialize Termii
     this.termiiApiKey = this.configService.get<string>('TERMII_API_KEY') || '';
     this.termiiSenderId = this.configService.get<string>('TERMII_SENDER_ID') || 'MatGrid';
+    this.termiiBaseUrl = this.configService.get<string>('TERMII_BASE_URL') || 'https://api.ng.termii.com';
+    this.termiiOtpUrl = `${this.termiiBaseUrl}/api/sms/otp/send`;
+    this.termiiVerifyUrl = `${this.termiiBaseUrl}/api/sms/otp/verify`;
     this.termiiEnabled = !!this.termiiApiKey;
 
     // Initialize Twilio
@@ -49,15 +54,15 @@ export class SmsService {
   /**
    * Send OTP via SMS - Routes to Termii or Twilio based on country code
    * @param phoneNumber - Phone number (e.g., 08012345678 or +16175551212)
-   * @param otp - 6-digit OTP code
+   * @returns Object with success status, pinId (for Termii), and otp (for Twilio dev mode)
    */
-  async sendOtp(phoneNumber: string, otp: string): Promise<boolean> {
+  async sendOtp(phoneNumber: string): Promise<{ success: boolean; pinId?: string; otp?: string }> {
     const isNigerian = this.isNigerianNumber(phoneNumber);
     
     if (isNigerian) {
-      return this.sendViaTermii(phoneNumber, otp);
+      return this.sendViaTermii(phoneNumber);
     } else {
-      return this.sendViaTwilio(phoneNumber, otp);
+      return this.sendViaTwilio(phoneNumber);
     }
   }
 
@@ -77,48 +82,91 @@ export class SmsService {
   }
 
   /**
-   * Send OTP via Termii (Nigerian numbers)
+   * Verify OTP via Termii's API (only for Nigerian numbers)
+   * For international numbers (Twilio), verification is done locally
    */
-  private async sendViaTermii(phoneNumber: string, otp: string): Promise<boolean> {
+  async verifyOtpWithTermii(pinId: string, pin: string): Promise<boolean> {
     if (!this.termiiEnabled) {
-      this.logger.warn(
-        { phoneNumber, otp },
-        'Termii disabled - Nigerian number cannot be sent'
-      );
+      this.logger.warn({ pinId }, 'Termii disabled - Cannot verify OTP');
       return false;
     }
 
-    const formattedNumber = this.formatNigerianNumber(phoneNumber);
-    const message = `Your MatGrid OTP is: ${otp}. Valid for 10 minutes. Do not share this code.`;
-
     try {
-      const response = await axios.post(this.termiiApiUrl, {
-        to: formattedNumber,
-        from: this.termiiSenderId,
-        sms: message,
-        type: 'plain',
-        channel: 'dnd', // Use DND route for OTP/transactional messages
+      const response = await axios.post(this.termiiVerifyUrl, {
         api_key: this.termiiApiKey,
+        pin_id: pinId,
+        pin,
       });
 
-      if (response.data.message_id) {
+      if (response.data.verified === true || response.data.verified === 'True') {
+        this.logger.info({ pinId }, 'OTP verified successfully via Termii');
+        return true;
+      }
+
+      this.logger.warn(
+        { pinId, response: response.data },
+        'OTP verification failed via Termii'
+      );
+      return false;
+    } catch (error) {
+      this.logger.error(
+        { 
+          pinId, 
+          error: error.response?.data || error.message,
+        },
+        'Error verifying OTP via Termii'
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Send OTP via Termii (Nigerian numbers) - Uses Termii's OTP API
+   */
+  private async sendViaTermii(phoneNumber: string): Promise<{ success: boolean; pinId?: string }> {
+    if (!this.termiiEnabled) {
+      this.logger.warn(
+        { phoneNumber },
+        'Termii disabled - Nigerian number cannot be sent'
+      );
+      return { success: false };
+    }
+
+    const formattedNumber = this.formatNigerianNumber(phoneNumber);
+
+    try {
+      const response = await axios.post(this.termiiOtpUrl, {
+        api_key: this.termiiApiKey,
+        pin_type: 'NUMERIC',
+        to: formattedNumber,
+        from: this.termiiSenderId,
+        channel: 'dnd', // Use DND route for OTP/transactional messages
+        pin_attempts: 3,
+        pin_time_to_live: 10, // 10 minutes
+        pin_length: 6,
+        pin_placeholder: '< 123456 >',
+        message_text: 'Your MatGrid verification code is < 123456 >. Valid for 10 minutes. Do not share this code.',
+      });
+
+      if (response.data.pinId || response.data.pin_id) {
+        const pinId = response.data.pinId || response.data.pin_id;
         this.logger.info(
           { 
             phoneNumber: formattedNumber, 
-            messageId: response.data.message_id,
-            balance: response.data.balance,
+            pinId,
             provider: 'Termii',
+            status: response.data.smsStatus,
           },
-          'OTP SMS sent successfully via Termii'
+          'OTP sent successfully via Termii OTP API'
         );
-        return true;
+        return { success: true, pinId };
       }
 
       this.logger.error(
         { phoneNumber: formattedNumber, response: response.data },
-        'Termii SMS send failed'
+        'Termii OTP API send failed'
       );
-      return false;
+      return { success: false };
     } catch (error) {
       this.logger.error(
         { 
@@ -126,26 +174,29 @@ export class SmsService {
           error: error.response?.data || error.message,
           provider: 'Termii',
         },
-        'Failed to send OTP SMS via Termii'
+        'Failed to send OTP via Termii OTP API'
       );
-      return false;
+      return { success: false };
     }
   }
 
   /**
    * Send OTP via Twilio (International numbers)
+   * Twilio doesn't have OTP API, so we generate OTP here
    */
-  private async sendViaTwilio(phoneNumber: string, otp: string): Promise<boolean> {
+  private async sendViaTwilio(phoneNumber: string): Promise<{ success: boolean; otp?: string }> {
     if (!this.twilioEnabled) {
       this.logger.warn(
-        { phoneNumber, otp },
+        { phoneNumber },
         'Twilio disabled - International number cannot be sent'
       );
-      return false;
+      return { success: false };
     }
 
+    // Generate 6-digit OTP for Twilio (Twilio doesn't have OTP API)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const formattedNumber = this.formatInternationalNumber(phoneNumber);
-    const message = `Your MatGrid OTP is: ${otp}. Valid for 10 minutes. Do not share this code.`;
+    const message = `Your MatGrid verification code is ${otp}. Valid for 10 minutes. Do not share this code.`;
 
     try {
       const response = await axios.post(
@@ -176,7 +227,8 @@ export class SmsService {
         'OTP SMS sent successfully via Twilio'
       );
 
-      return ['queued', 'sent', 'delivered'].includes(response.data.status);
+      const success = ['queued', 'sent', 'delivered'].includes(response.data.status);
+      return { success, otp: success ? otp : undefined };
     } catch (error) {
       this.logger.error(
         { 
@@ -186,7 +238,7 @@ export class SmsService {
         },
         'Failed to send OTP SMS via Twilio'
       );
-      return false;
+      return { success: false };
     }
   }
 

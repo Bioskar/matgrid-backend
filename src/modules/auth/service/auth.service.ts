@@ -228,16 +228,28 @@ export class AuthService {
       throw new BadRequestException(`Please wait ${waitTime} seconds before requesting another OTP`);
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
     // Set expiry to 10 minutes
     const expiresAt = new Date(Date.now() + 10 * 60000);
+
+    // Send OTP via SMS (Termii or Twilio)
+    const smsResult = await this.smsService.sendOtp(phoneNumber);
+
+    if (!smsResult.success) {
+      if (this.smsService.isServiceEnabled()) {
+        // SMS service is enabled but failed to send
+        this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
+        throw new BadRequestException('Failed to send OTP. Please try again.');
+      } else {
+        // SMS service is disabled (no credentials)
+        this.logger.warn({ phoneNumber }, 'SMS service disabled - OTP not sent (DEV MODE)');
+      }
+    }
 
     // Save OTP to database
     const otpEntity = this.otpRepository.create({
       phoneNumber,
-      otp,
+      otp: smsResult.otp || null, // For Twilio (international) or dev mode
+      pinId: smsResult.pinId || null, // For Termii (Nigerian numbers)
       expiresAt,
       verified: false,
       attempts: 0,
@@ -245,37 +257,23 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
-    // Send OTP via SMS
-    const smsSent = await this.smsService.sendOtp(phoneNumber, otp);
-
-    if (!smsSent) {
-      if (this.smsService.isServiceEnabled()) {
-        // SMS service is enabled but failed to send
-        this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
-        throw new BadRequestException('Failed to send OTP. Please try again.');
-      } else {
-        // SMS service is disabled (no credentials)
-        this.logger.warn({ phoneNumber, otp }, 'SMS service disabled - OTP not sent (DEV MODE)');
-      }
-    }
-
     // Log OTP in development mode only
     if (process.env.NODE_ENV === 'development') {
       this.logger.info(
-        { phoneNumber, otp, expiresAt, smsSent },
+        { phoneNumber, otp: smsResult.otp, pinId: smsResult.pinId, expiresAt, smsSent: smsResult.success },
         'OTP generated for user'
       );
     }
 
     return {
       success: true,
-      message: smsSent 
+      message: smsResult.success 
         ? 'OTP sent to your phone number'
         : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       phoneNumber,
       expiresAt,
       // Only include OTP in dev when SMS is completely disabled (no credentials)
-      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp }),
+      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
     };
   }
 
@@ -308,8 +306,20 @@ export class AuthService {
       throw new BadRequestException('Maximum verification attempts exceeded. Please request a new OTP');
     }
 
-    // Verify OTP
-    if (otpEntity.otp !== otp) {
+    let isValid = false;
+
+    // Verify OTP - Use Termii API for Nigerian numbers, local verification for others
+    if (otpEntity.pinId) {
+      // Nigerian number - Use Termii's verification API
+      isValid = await this.smsService.verifyOtpWithTermii(otpEntity.pinId, otp);
+    } else if (otpEntity.otp) {
+      // International number (Twilio) - Verify locally
+      isValid = otpEntity.otp === otp;
+    } else {
+      throw new BadRequestException('Invalid OTP record');
+    }
+
+    if (!isValid) {
       otpEntity.attempts += 1;
       await this.otpRepository.save(otpEntity);
       
@@ -531,14 +541,22 @@ export class AuthService {
       throw new BadRequestException(`Please wait ${waitTime} seconds before requesting another OTP`);
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Set expiry to 10 minutes
     const expiresAt = new Date(Date.now() + 10 * 60000);
+
+    // Send OTP via SMS using phone number
+    const phoneNumber = user.phoneNumber || emailOrPhone;
+    const smsResult = await this.smsService.sendOtp(phoneNumber);
+
+    if (!smsResult.success && process.env.NODE_ENV === 'development') {
+      this.logger.info({ emailOrPhone, otp: smsResult.otp }, 'SignIn OTP generated (DEV MODE)');
+    }
 
     // Save OTP to database
     const otpEntity = this.otpRepository.create({
       phoneNumber: user.phoneNumber || emailOrPhone,
-      otp,
+      otp: smsResult.otp || null, // For Twilio (international) or dev mode
+      pinId: smsResult.pinId || null, // For Termii (Nigerian numbers)
       expiresAt,
       verified: false,
       attempts: 0,
@@ -546,24 +564,14 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
-    // Send OTP via SMS or Email
-    const phoneNumber = user.phoneNumber || user.email;
-    const smsSent = phoneNumber && phoneNumber.match(/^[0-9+\-\s()]+$/)
-      ? await this.smsService.sendOtp(phoneNumber, otp)
-      : false;
-
-    if (!smsSent && process.env.NODE_ENV === 'development') {
-      this.logger.info({ emailOrPhone, otp }, 'SignIn OTP generated (DEV MODE)');
-    }
-
     return {
       success: true,
-      message: smsSent 
+      message: smsResult.success 
         ? 'OTP sent to your phone number'
         : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       emailOrPhone,
       expiresAt,
-      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp }),
+      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
     };
   }
 
@@ -608,8 +616,20 @@ export class AuthService {
       throw new BadRequestException('Maximum verification attempts exceeded. Please request a new OTP');
     }
 
-    // Verify OTP
-    if (otpEntity.otp !== otp) {
+    let isValid = false;
+
+    // Verify OTP - Use Termii API for Nigerian numbers, local verification for others
+    if (otpEntity.pinId) {
+      // Nigerian number - Use Termii's verification API
+      isValid = await this.smsService.verifyOtpWithTermii(otpEntity.pinId, otp);
+    } else if (otpEntity.otp) {
+      // International number (Twilio) - Verify locally
+      isValid = otpEntity.otp === otp;
+    } else {
+      throw new BadRequestException('Invalid OTP record');
+    }
+
+    if (!isValid) {
       otpEntity.attempts += 1;
       await this.otpRepository.save(otpEntity);
       throw new BadRequestException(`Invalid OTP. ${3 - otpEntity.attempts} attempts remaining`);

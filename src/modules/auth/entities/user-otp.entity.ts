@@ -9,8 +9,11 @@ export class UserOtp {
   @Column({ type: 'varchar' })
   phoneNumber: string;
 
-  @Column({ type: 'varchar' })
-  otp: string;
+  @Column({ type: 'varchar', nullable: true })
+  otp: string; // For Twilio (international numbers) or dev mode
+
+  @Column({ type: 'varchar', nullable: true })
+  pinId: string; // For Termii (Nigerian numbers) - returned from Termii OTP API
 
   @Column({ type: 'timestamp' })
   expiresAt: Date;
