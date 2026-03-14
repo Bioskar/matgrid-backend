@@ -136,6 +136,7 @@ async function bootstrap() {
       .addTag('Materials', 'Material management and quote operations')
       .addTag('Quotes', 'Quote management endpoints')
       .addTag('Suppliers', 'Supplier management and quote comparison')
+      .addTag('Admin', 'Admin panel — platform oversight, escrow, KYC, and system settings')
       .addBearerAuth(
         {
           type: 'http',

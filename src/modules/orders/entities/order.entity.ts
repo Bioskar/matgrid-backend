@@ -41,12 +41,19 @@ export class Order {
   @Column({ type: 'varchar', default: 'NGN' })
   currency: string;
 
-  @Column({ 
+  @Column({
     type: 'enum',
-    enum: ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'disputed', 'completed'],
     default: 'pending'
   })
   status: string;
+
+  @Column({
+    type: 'enum',
+    enum: ['none', 'funds_held', 'released_to_client', 'disputed'],
+    default: 'none',
+  })
+  escrowStatus: string;
 
   @Column({ 
     type: 'enum',
@@ -81,6 +88,12 @@ export class Order {
 
   @Column({ type: 'timestamp', nullable: true })
   deliveredAt?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  disputedAt?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  completedAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;
