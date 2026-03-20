@@ -47,9 +47,18 @@ export class OrdersController {
       **Order statuses:**
       - pending: Awaiting payment
       - paid: Payment completed, processing
-      - confirmed: Suppliers confirmed order
-      - shipped: Items dispatched
-      - delivered: Order completed
+      - processing: Order being processed by supplier
+      - shipped: Items dispatched (in transit)
+      - delivered: Items delivered, awaiting confirmation
+      - completed: Order fully completed
+      - disputed: Order under dispute
+      - cancelled: Order cancelled
+
+      **Escrow status:**
+      - none: No escrow (pre-payment)
+      - funds_held: Payment received, funds held in escrow
+      - released_to_client: Funds released to supplier
+      - disputed: Funds frozen due to dispute
       
       **Frontend flow:**
       1. Show order summary with totals
@@ -76,6 +85,7 @@ export class OrdersController {
           totalAmount: 2025000,
           currency: 'NGN',
           status: 'pending',
+          escrowStatus: 'none',
           paymentStatus: 'pending',
           contactName: 'John Doe',
           contactPhone: '+2348012345678',
@@ -133,6 +143,7 @@ export class OrdersController {
           orderNumber: '#12345678',
           totalAmount: 2025000,
           status: 'delivered',
+          escrowStatus: 'funds_held',
           paymentStatus: 'completed',
           createdAt: '2025-12-15T10:00:00.000Z',
           deliveredAt: '2025-12-17T10:00:00.000Z'
@@ -230,6 +241,7 @@ export class OrdersController {
           orderNumber: '#12345678',
           totalAmount: 2025000,
           paymentStatus: 'completed',
+          escrowStatus: 'funds_held',
           transactionReference: 'TXN-1234567890-ABC123',
           paidAt: '2025-12-16T08:10:00.000Z'
         }
