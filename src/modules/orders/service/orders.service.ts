@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import pino from 'pino';
 import { Order } from '../entities/order.entity';
 import { OrderItem } from '../entities/order-item.entity';
+import { EscrowTransaction } from '../../Admin/entities/escrow-transaction.entity';
 import { CreateOrderDto, ProcessPaymentDto } from '../dto/create-order.dto';
 
 @Injectable()
@@ -13,6 +14,8 @@ export class OrdersService {
     private orderRepository: Repository<Order>,
     @InjectRepository(OrderItem)
     private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(EscrowTransaction)
+    private escrowRepository: Repository<EscrowTransaction>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
   ) {}
 
@@ -186,6 +189,7 @@ export class OrdersService {
   async processPayment(orderId: string, userId: string, paymentDto: ProcessPaymentDto) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId, userId },
+      relations: ['items', 'items.supplier', 'user'],
     });
 
     if (!order) {
@@ -205,6 +209,7 @@ export class OrdersService {
     order.paymentMethod = paymentDto.paymentMethod;
     order.transactionReference = transactionReference;
     order.status = 'paid';
+    order.escrowStatus = 'funds_held';
     order.paidAt = new Date();
 
     await this.orderRepository.save(order);
@@ -215,8 +220,44 @@ export class OrdersService {
       { status: 'confirmed' }
     );
 
+    // Create one EscrowTransaction per unique supplier
+    const contractorName = order.user?.fullName || order.user?.company || 'Unknown';
+    const supplierTotals = new Map<string, { supplier: any; total: number }>();
+
+    for (const item of order.items || []) {
+      if (!item.supplierId) continue;
+      const existing = supplierTotals.get(item.supplierId);
+      if (existing) {
+        existing.total += Number(item.totalPrice);
+      } else {
+        supplierTotals.set(item.supplierId, {
+          supplier: item.supplier,
+          total: Number(item.totalPrice),
+        });
+      }
+    }
+
+    const escrowRecords = [...supplierTotals.entries()].map(([supplierId, { supplier, total }]) =>
+      this.escrowRepository.create({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        contractorId: userId,
+        contractorName,
+        supplierId,
+        supplierName: supplier?.name || 'Unknown',
+        amount: total,
+        currency: order.currency,
+        escrowStatus: 'held',
+        deliveryStatus: 'in_transit',
+      }),
+    );
+
+    if (escrowRecords.length > 0) {
+      await this.escrowRepository.save(escrowRecords);
+    }
+
     this.logger.info(
-      { orderId, userId, transactionReference, amount: order.totalAmount },
+      { orderId, userId, transactionReference, amount: order.totalAmount, escrowCount: escrowRecords.length },
       'Payment processed successfully'
     );
 
