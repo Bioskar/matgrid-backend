@@ -14,6 +14,7 @@ import { KycModule } from './modules/kyc/kyc.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SupportModule } from './modules/support/support.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { AdminModule } from './modules/Admin/admin.module';
 import { CommonModule } from './common/modules/common.module';
 import { LoggerProviderModule } from './common/modules/logger.module';
 import { getDatabaseConfig } from './config/database.config';
@@ -50,6 +51,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     PaymentsModule,
     SupportModule,
     SettingsModule,
+    AdminModule,
   ],
   providers: [
     DbValidationService,

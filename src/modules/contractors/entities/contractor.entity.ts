@@ -40,6 +40,13 @@ export class Contractor {
     preferredSuppliers?: string[];
   };
 
+  @Column({
+    type: 'enum',
+    enum: ['active', 'pending', 'suspended'],
+    default: 'active',
+  })
+  status: 'active' | 'pending' | 'suspended';
+
   @Column({ type: 'boolean', default: true, nullable: false })
   isActive: boolean;
 

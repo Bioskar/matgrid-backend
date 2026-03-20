@@ -4,11 +4,12 @@ import { OrdersController } from './controller/orders.controller';
 import { OrdersService } from './service/orders.service';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { EscrowTransaction } from '../Admin/entities/escrow-transaction.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderItem]),
+    TypeOrmModule.forFeature([Order, OrderItem, EscrowTransaction]),
     LoggerProviderModule,
   ],
   controllers: [OrdersController],
