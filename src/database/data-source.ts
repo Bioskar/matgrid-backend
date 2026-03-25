@@ -15,4 +15,5 @@ export const AppDataSource = new DataSource({
   migrations: ['src/database/migrations/**/*{.ts,.js}'],
   synchronize: false,
   logging: ['error', 'migration'],
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
