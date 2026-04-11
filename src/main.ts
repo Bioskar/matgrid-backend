@@ -4,7 +4,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
-import { createBootstrapLogger, FilteredPinoLoggerService } from './config/logger.config';
+import {
+  createBootstrapLogger,
+  FilteredPinoLoggerService,
+} from './config/logger.config';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -17,7 +20,10 @@ const bootstrapLogger = createBootstrapLogger();
 // Global error handlers
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[FATAL] Unhandled Rejection:', reason);
-  bootstrapLogger.error({ reason, promise, stack: (reason as Error)?.stack }, 'Unhandled Rejection');
+  bootstrapLogger.error(
+    { reason, promise, stack: (reason as Error)?.stack },
+    'Unhandled Rejection',
+  );
 });
 
 process.on('uncaughtException', (error) => {
@@ -40,7 +46,7 @@ function validatePostgresEnv(): void {
     .map(([key]) => key);
 
   if (missing.length > 0) {
-    const error = `[FATAL] Missing PostgreSQL configuration!\n\nRequired environment variables:\n${missing.map(k => `  - ${k}`).join('\n')}\n\nMake sure your .env file contains:\n  DB_HOST=localhost\n  DB_PORT=5432\n  DB_USERNAME=postgres\n  DB_PASSWORD=your_password\n  DB_NAME=matgridv2`;
+    const error = `[FATAL] Missing PostgreSQL configuration!\n\nRequired environment variables:\n${missing.map((k) => `  - ${k}`).join('\n')}\n\nMake sure your .env file contains:\n  DB_HOST=localhost\n  DB_PORT=5432\n  DB_USERNAME=postgres\n  DB_PASSWORD=your_password\n  DB_NAME=matgridv2`;
     bootstrapLogger.error({ missing_vars: missing }, error);
     throw new Error(error);
   }
@@ -53,8 +59,12 @@ function validatePostgresEnv(): void {
   }
 
   bootstrapLogger.info(
-    { host: required.DB_HOST, port: required.DB_PORT, database: required.DB_NAME },
-    '[BOOTSTRAP] PostgreSQL environment verified'
+    {
+      host: required.DB_HOST,
+      port: required.DB_PORT,
+      database: required.DB_NAME,
+    },
+    '[BOOTSTRAP] PostgreSQL environment verified',
   );
 }
 
@@ -95,23 +105,27 @@ async function bootstrap() {
     exclude: ['health', 'health/live', 'health/ready', '/'],
   });
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   app.use(compression());
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') || '*',
+    origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:5173',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   app.useGlobalPipes(
@@ -130,13 +144,21 @@ async function bootstrap() {
   if (process.env.SWAGGER_ENABLED !== 'false') {
     const config = new DocumentBuilder()
       .setTitle('MatGrid API')
-      .setDescription('Material Grid Backend API - Material Request and Supplier Management System')
+      .setDescription(
+        'Material Grid Backend API - Material Request and Supplier Management System',
+      )
       .setVersion(process.env.API_VERSION || 'v1')
-      .addTag('Authentication', 'User authentication and authorization endpoints')
+      .addTag(
+        'Authentication',
+        'User authentication and authorization endpoints',
+      )
       .addTag('Materials', 'Material management and quote operations')
       .addTag('Quotes', 'Quote management endpoints')
       .addTag('Suppliers', 'Supplier management and quote comparison')
-      .addTag('Admin', 'Admin panel — platform oversight, escrow, KYC, and system settings')
+      .addTag(
+        'Admin',
+        'Admin panel — platform oversight, escrow, KYC, and system settings',
+      )
       .addBearerAuth(
         {
           type: 'http',
@@ -169,10 +191,10 @@ async function bootstrap() {
 
   const port = parseInt(process.env.PORT || '3000', 10);
   const host = process.env.HOST || '0.0.0.0';
-  
+
   // Enable graceful shutdown
   app.enableShutdownHooks();
-  
+
   // Start listening on the port
   await app.listen(port, host);
 
@@ -180,13 +202,13 @@ async function bootstrap() {
 
   bootstrapLogger.info(
     { env: process.env.NODE_ENV || 'development', urls: reachable },
-    '[BOOTSTRAP] Application running'
+    '[BOOTSTRAP] Application running',
   );
   bootstrapLogger.info(
     { urls: reachable.map((url) => `${url}/api/docs`) },
-    '[BOOTSTRAP] API Docs'
+    '[BOOTSTRAP] API Docs',
   );
-  
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     bootstrapLogger.info({ signal }, '[SHUTDOWN] Received shutdown signal');
@@ -197,13 +219,18 @@ async function bootstrap() {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-  
-  bootstrapLogger.debug({}, '[BOOTSTRAP] Server ready with graceful shutdown enabled');
+
+  bootstrapLogger.debug(
+    {},
+    '[BOOTSTRAP] Server ready with graceful shutdown enabled',
+  );
 }
 
-bootstrap()
-  .catch((err) => {
-    console.error('[FATAL] Bootstrap error:', err);
-    bootstrapLogger.error({ error: err, stack: err?.stack }, '[FATAL] Application failed to start');
-    process.exit(1);
-  });
+bootstrap().catch((err) => {
+  console.error('[FATAL] Bootstrap error:', err);
+  bootstrapLogger.error(
+    { error: err, stack: err?.stack },
+    '[FATAL] Application failed to start',
+  );
+  process.exit(1);
+});

@@ -12,10 +12,19 @@ import { Order } from '../../orders/entities/order.entity';
 import { Quote } from '../../quotes/entities/quote.entity';
 import { Supplier } from '../../suppliers/entities/supplier.entity';
 import { Contractor } from '../../contractors/entities/contractor.entity';
-import { KycDocument, VerificationStatus } from '../../kyc/entities/kyc-document.entity';
+import {
+  KycDocument,
+  VerificationStatus,
+} from '../../kyc/entities/kyc-document.entity';
 import { EscrowTransaction } from '../entities/escrow-transaction.entity';
 import { PlatformSettings } from '../entities/platform-settings.entity';
-import { UpdatePlatformSettingsDto, ListQueryDto, RejectKycDto, ResolveDisputeDto, ReleaseEscrowDto } from '../dto/admin.dto';
+import {
+  UpdatePlatformSettingsDto,
+  ListQueryDto,
+  RejectKycDto,
+  ResolveDisputeDto,
+  ReleaseEscrowDto,
+} from '../dto/admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -62,7 +71,9 @@ export class AdminService {
       this.orderRepo
         .createQueryBuilder('o')
         .select('COALESCE(SUM(o.totalAmount), 0)', 'gtv')
-        .where('o.status IN (:...statuses)', { statuses: ['paid', 'delivered', 'completed'] })
+        .where('o.status IN (:...statuses)', {
+          statuses: ['paid', 'delivered', 'completed'],
+        })
         .andWhere('o.createdAt >= :start', { start: startOfMonth })
         .getRawOne(),
 
@@ -83,13 +94,17 @@ export class AdminService {
       }),
 
       // Active suppliers
-      this.supplierRepo.count({ where: { isActive: true, verificationStatus: 'verified' as any } }),
+      this.supplierRepo.count({
+        where: { isActive: true, verificationStatus: 'verified' as any },
+      }),
 
       // Pending escrow releases
       this.escrowRepo.count({ where: { escrowStatus: 'held' } }),
 
       // New supplier applications (pending verification)
-      this.supplierRepo.count({ where: { verificationStatus: 'pending' as any } }),
+      this.supplierRepo.count({
+        where: { verificationStatus: 'pending' as any },
+      }),
 
       // Disputes
       this.orderRepo.count({ where: { status: 'disputed' } }),
@@ -112,6 +127,8 @@ export class AdminService {
       escrowStatus: o.escrowStatus,
       createdAt: o.createdAt,
     }));
+
+    console.log('This got hit.');
 
     return {
       stats: {
@@ -161,20 +178,29 @@ export class AdminService {
 
     if (status) {
       const backendStatus = this.mapRfqStatusToBackend(status);
-      if (backendStatus) qb.andWhere('q.status = :status', { status: backendStatus });
+      if (backendStatus)
+        qb.andWhere('q.status = :status', { status: backendStatus });
     }
 
     if (search) {
-      qb.andWhere('(u.fullName ILIKE :search OR u.company ILIKE :search OR q.title ILIKE :search)', {
-        search: `%${search}%`,
-      });
+      qb.andWhere(
+        '(u.fullName ILIKE :search OR u.company ILIKE :search OR q.title ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     const [rfqs, total] = await qb.getManyAndCount();
 
     const data = rfqs.map((q) => {
       const timeLeft = q.deadline
-        ? Math.max(0, Math.ceil((q.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        ? Math.max(
+            0,
+            Math.ceil(
+              (q.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+            ),
+          )
         : null;
       return {
         rfqId: q.id,
@@ -223,7 +249,9 @@ export class AdminService {
 
     if (status) {
       if (status === 'active') {
-        qb.andWhere('o.status IN (:...s)', { s: ['paid', 'processing', 'shipped'] });
+        qb.andWhere('o.status IN (:...s)', {
+          s: ['paid', 'processing', 'shipped'],
+        });
       } else if (status === 'disputed') {
         qb.andWhere('o.status = :s', { s: 'disputed' });
       } else if (status === 'completed') {
@@ -232,16 +260,21 @@ export class AdminService {
     }
 
     if (search) {
-      qb.andWhere('(o.orderNumber ILIKE :search OR u.fullName ILIKE :search OR u.company ILIKE :search)', {
-        search: `%${search}%`,
-      });
+      qb.andWhere(
+        '(o.orderNumber ILIKE :search OR u.fullName ILIKE :search OR u.company ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     const [orders, total] = await qb.getManyAndCount();
 
     const data = orders.map((o) => {
       const supplierNames = [
-        ...new Set((o.items || []).map((i) => i.supplier?.name).filter(Boolean)),
+        ...new Set(
+          (o.items || []).map((i) => i.supplier?.name).filter(Boolean),
+        ),
       ];
       return {
         orderId: o.orderNumber,
@@ -268,7 +301,10 @@ export class AdminService {
     }
     order.status = 'processing';
     await this.orderRepo.save(order);
-    this.logger.info({ orderId, resolution: dto.resolution }, 'Admin resolved order dispute');
+    this.logger.info(
+      { orderId, resolution: dto.resolution },
+      'Admin resolved order dispute',
+    );
     return { message: 'Dispute resolved. Order moved back to processing.' };
   }
 
@@ -325,9 +361,12 @@ export class AdminService {
     }
 
     if (search) {
-      qb.andWhere('(c.fullName ILIKE :search OR c.company ILIKE :search OR u.email ILIKE :search)', {
-        search: `%${search}%`,
-      });
+      qb.andWhere(
+        '(c.fullName ILIKE :search OR c.company ILIKE :search OR u.email ILIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     const [contractors, total] = await qb.getManyAndCount();
@@ -347,7 +386,13 @@ export class AdminService {
       : [];
 
     const statsMap = new Map(
-      orderStats.map((s) => [s.userId, { orderCount: Number(s.orderCount), contractValue: Number(s.contractValue) }]),
+      orderStats.map((s) => [
+        s.userId,
+        {
+          orderCount: Number(s.orderCount),
+          contractValue: Number(s.contractValue),
+        },
+      ]),
     );
 
     const data = contractors.map((c) => ({
@@ -365,7 +410,9 @@ export class AdminService {
   }
 
   async suspendContractor(contractorId: string) {
-    const contractor = await this.contractorRepo.findOne({ where: { userId: contractorId } });
+    const contractor = await this.contractorRepo.findOne({
+      where: { userId: contractorId },
+    });
     if (!contractor) throw new NotFoundException('Contractor not found');
     if (contractor.status === 'suspended') {
       throw new BadRequestException('Contractor is already suspended');
@@ -383,7 +430,9 @@ export class AdminService {
   }
 
   async reactivateContractor(contractorId: string) {
-    const contractor = await this.contractorRepo.findOne({ where: { userId: contractorId } });
+    const contractor = await this.contractorRepo.findOne({
+      where: { userId: contractorId },
+    });
     if (!contractor) throw new NotFoundException('Contractor not found');
     if (contractor.status === 'active') {
       throw new BadRequestException('Contractor is already active');
@@ -407,8 +456,12 @@ export class AdminService {
   async getSupplierStats() {
     const [total, active, pending, suspended] = await Promise.all([
       this.supplierRepo.count(),
-      this.supplierRepo.count({ where: { isActive: true, verificationStatus: 'verified' as any } }),
-      this.supplierRepo.count({ where: { verificationStatus: 'pending' as any } }),
+      this.supplierRepo.count({
+        where: { isActive: true, verificationStatus: 'verified' as any },
+      }),
+      this.supplierRepo.count({
+        where: { verificationStatus: 'pending' as any },
+      }),
       this.supplierRepo.count({ where: { isActive: false } }),
     ]);
     return { total, active, pending, suspended };
@@ -425,7 +478,9 @@ export class AdminService {
       .take(limit);
 
     if (status === 'active') {
-      qb.andWhere('s.isActive = true AND s.verificationStatus = :vs', { vs: 'verified' });
+      qb.andWhere('s.isActive = true AND s.verificationStatus = :vs', {
+        vs: 'verified',
+      });
     } else if (status === 'pending') {
       qb.andWhere('s.verificationStatus = :vs', { vs: 'pending' });
     } else if (status === 'suspended') {
@@ -433,7 +488,9 @@ export class AdminService {
     }
 
     if (search) {
-      qb.andWhere('(s.name ILIKE :search OR u.email ILIKE :search)', { search: `%${search}%` });
+      qb.andWhere('(s.name ILIKE :search OR u.email ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     const [suppliers, total] = await qb.getManyAndCount();
@@ -451,7 +508,9 @@ export class AdminService {
           .getRawMany()
       : [];
 
-    const statsMap = new Map(orderStats.map((s) => [s.supplierId, Number(s.orderCount)]));
+    const statsMap = new Map(
+      orderStats.map((s) => [s.supplierId, Number(s.orderCount)]),
+    );
 
     const data = suppliers.map((s) => ({
       id: s.userId,
@@ -468,7 +527,9 @@ export class AdminService {
   }
 
   async suspendSupplier(supplierId: string) {
-    const supplier = await this.supplierRepo.findOne({ where: { userId: supplierId } });
+    const supplier = await this.supplierRepo.findOne({
+      where: { userId: supplierId },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     await this.dataSource.transaction(async (em) => {
@@ -482,7 +543,9 @@ export class AdminService {
   }
 
   async reactivateSupplier(supplierId: string) {
-    const supplier = await this.supplierRepo.findOne({ where: { userId: supplierId } });
+    const supplier = await this.supplierRepo.findOne({
+      where: { userId: supplierId },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     await this.dataSource.transaction(async (em) => {
@@ -495,8 +558,14 @@ export class AdminService {
     return { message: 'Supplier reactivated successfully.' };
   }
 
-  async reviewSupplier(supplierId: string, action: 'approve' | 'reject', reason?: string) {
-    const supplier = await this.supplierRepo.findOne({ where: { userId: supplierId } });
+  async reviewSupplier(
+    supplierId: string,
+    action: 'approve' | 'reject',
+    reason?: string,
+  ) {
+    const supplier = await this.supplierRepo.findOne({
+      where: { userId: supplierId },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     if (action === 'approve') {
@@ -509,7 +578,9 @@ export class AdminService {
 
     await this.supplierRepo.save(supplier);
     this.logger.info({ supplierId, action }, 'Admin reviewed supplier');
-    return { message: `Supplier ${action === 'approve' ? 'approved' : 'rejected'} successfully.` };
+    return {
+      message: `Supplier ${action === 'approve' ? 'approved' : 'rejected'} successfully.`,
+    };
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -520,23 +591,24 @@ export class AdminService {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const [heldResult, releasedTodayResult, pendingCount, disputedCount] = await Promise.all([
-      this.escrowRepo
-        .createQueryBuilder('e')
-        .select('COALESCE(SUM(e.amount), 0)', 'total')
-        .where('e.escrowStatus = :s', { s: 'held' })
-        .getRawOne(),
+    const [heldResult, releasedTodayResult, pendingCount, disputedCount] =
+      await Promise.all([
+        this.escrowRepo
+          .createQueryBuilder('e')
+          .select('COALESCE(SUM(e.amount), 0)', 'total')
+          .where('e.escrowStatus = :s', { s: 'held' })
+          .getRawOne(),
 
-      this.escrowRepo
-        .createQueryBuilder('e')
-        .select('COALESCE(SUM(e.amount), 0)', 'total')
-        .where('e.escrowStatus = :s', { s: 'released' })
-        .andWhere('e.releasedAt >= :today', { today: todayStart })
-        .getRawOne(),
+        this.escrowRepo
+          .createQueryBuilder('e')
+          .select('COALESCE(SUM(e.amount), 0)', 'total')
+          .where('e.escrowStatus = :s', { s: 'released' })
+          .andWhere('e.releasedAt >= :today', { today: todayStart })
+          .getRawOne(),
 
-      this.escrowRepo.count({ where: { escrowStatus: 'held' } }),
-      this.escrowRepo.count({ where: { escrowStatus: 'disputed' } }),
-    ]);
+        this.escrowRepo.count({ where: { escrowStatus: 'held' } }),
+        this.escrowRepo.count({ where: { escrowStatus: 'disputed' } }),
+      ]);
 
     return {
       totalHeldInEscrow: Number(heldResult?.total || 0),
@@ -600,7 +672,11 @@ export class AdminService {
       await em.save(escrow);
 
       // Update order escrow status
-      await em.update(Order, { id: escrow.orderId }, { escrowStatus: 'released_to_client' });
+      await em.update(
+        Order,
+        { id: escrow.orderId },
+        { escrowStatus: 'released_to_client' },
+      );
     });
 
     this.logger.info({ escrowId }, 'Admin released escrow funds');
@@ -653,11 +729,14 @@ export class AdminService {
 
     if (status) {
       const mappedStatus = this.mapKycStatusToBackend(status);
-      if (mappedStatus) qb.andWhere('k.verificationStatus = :s', { s: mappedStatus });
+      if (mappedStatus)
+        qb.andWhere('k.verificationStatus = :s', { s: mappedStatus });
     }
 
     if (search) {
-      qb.andWhere('(u.fullName ILIKE :search OR u.email ILIKE :search)', { search: `%${search}%` });
+      qb.andWhere('(u.fullName ILIKE :search OR u.email ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     const allDocs = await qb.getMany();
@@ -665,7 +744,12 @@ export class AdminService {
     // Group by userId
     const grouped = new Map<
       string,
-      { user: User; docs: KycDocument[]; latestStatus: VerificationStatus; submittedAt: Date }
+      {
+        user: User;
+        docs: KycDocument[];
+        latestStatus: VerificationStatus;
+        submittedAt: Date;
+      }
     >();
 
     for (const doc of allDocs) {
@@ -698,12 +782,16 @@ export class AdminService {
 
   async approveKyc(userId: string) {
     const docs = await this.kycRepo.find({ where: { userId } });
-    if (!docs.length) throw new NotFoundException('No KYC documents found for this user');
+    if (!docs.length)
+      throw new NotFoundException('No KYC documents found for this user');
 
-    await this.kycRepo.update({ userId }, {
-      verificationStatus: VerificationStatus.VERIFIED,
-      verifiedAt: new Date(),
-    });
+    await this.kycRepo.update(
+      { userId },
+      {
+        verificationStatus: VerificationStatus.VERIFIED,
+        verifiedAt: new Date(),
+      },
+    );
 
     // Update supplier verification status
     const supplier = await this.supplierRepo.findOne({ where: { userId } });
@@ -719,12 +807,16 @@ export class AdminService {
 
   async rejectKyc(userId: string, dto: RejectKycDto) {
     const docs = await this.kycRepo.find({ where: { userId } });
-    if (!docs.length) throw new NotFoundException('No KYC documents found for this user');
+    if (!docs.length)
+      throw new NotFoundException('No KYC documents found for this user');
 
-    await this.kycRepo.update({ userId }, {
-      verificationStatus: VerificationStatus.REJECTED,
-      rejectionReason: dto.reason,
-    });
+    await this.kycRepo.update(
+      { userId },
+      {
+        verificationStatus: VerificationStatus.REJECTED,
+        rejectionReason: dto.reason,
+      },
+    );
 
     const supplier = await this.supplierRepo.findOne({ where: { userId } });
     if (supplier) {
@@ -759,6 +851,138 @@ export class AdminService {
     await this.settingsRepo.save(settings);
     this.logger.info({ dto }, 'Admin updated platform settings');
     return settings;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // DETAILED GETTERS
+  // ────────────────────────────────────────────────────────────────────────────
+
+  async getRfqById(id: string) {
+    const q = await this.quoteRepo.findOne({
+      where: { id },
+      relations: ['user', 'materials'],
+    });
+    if (!q) throw new NotFoundException('RFQ not found');
+
+    const timeLeft = q.deadline
+      ? Math.max(
+          0,
+          Math.ceil(
+            (q.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          ),
+        )
+      : null;
+
+    return {
+      rfqId: q.id,
+      contractor: q.user?.fullName || q.user?.company || 'N/A',
+      contractorEmail: q.user?.email,
+      title: q.title,
+      description: q.description,
+      itemsCount: q.materialsCount || (q.materials?.length ?? 0),
+      materials: q.materials,
+      quotesCount: q.suppliersCount,
+      deadline: q.deadline,
+      timeLeftDays: timeLeft,
+      status: this.mapRfqStatus(q.status),
+      estimatedCost: Number(q.totalEstimatedCost),
+      currency: q.currency,
+      createdAt: q.createdAt,
+    };
+  }
+
+  async getOrderById(id: string) {
+    const o = await this.orderRepo.findOne({
+      where: { id },
+      relations: ['user', 'items'],
+    });
+    if (!o) throw new NotFoundException('Order not found');
+
+    return {
+      orderId: o.orderNumber,
+      contractor: o.user?.fullName || o.user?.company || 'N/A',
+      contractorEmail: o.user?.email,
+      suppliers: [
+        ...new Set((o.items || []).map((i) => i.id).filter(Boolean)), // Assuming supplier info needs extra join or we return items directly
+      ],
+      amount: Number(o.totalAmount),
+      currency: o.currency,
+      status: this.mapOrderStatus(o.status),
+      escrowStatus: o.escrowStatus,
+      items: o.items,
+      createdAt: o.createdAt,
+      id: o.id,
+      deliveryAddress: o.deliveryAddress || null,
+      trackingStatus: o.status,
+    };
+  }
+
+  async getContractorById(id: string) {
+    const contractor = await this.contractorRepo.findOne({
+      where: { userId: id },
+      relations: ['user'],
+    });
+    if (!contractor) throw new NotFoundException('Contractor not found');
+
+    const orderStats = await this.orderRepo
+      .createQueryBuilder('o')
+      .select('COUNT(o.id)', 'orderCount')
+      .addSelect('COALESCE(SUM(o.totalAmount), 0)', 'contractValue')
+      .where('o.userId = :id', { id })
+      .getRawOne();
+
+    return {
+      id: contractor.userId,
+      name: contractor.fullName,
+      email: contractor.user?.email,
+      company: contractor.company,
+      businessAddress: contractor.businessAddress || null,
+      status: contractor.status,
+      ordersCount: Number(orderStats?.orderCount || 0),
+      contractValue: Number(orderStats?.contractValue || 0),
+      createdAt: contractor.createdAt,
+    };
+  }
+
+  async getSupplierById(id: string) {
+    const supplier = await this.supplierRepo.findOne({
+      where: { userId: id },
+      relations: ['user'],
+    });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+
+    const orderStats = await this.orderRepo
+      .createQueryBuilder('o')
+      .innerJoin('o.items', 'i')
+      .select('COUNT(DISTINCT o.id)', 'orderCount')
+      .where('i.supplierId = :id', { id })
+      .getRawOne();
+
+    return {
+      id: supplier.userId,
+      name: supplier.name,
+      email: supplier.user?.email,
+      rating: Number(supplier.rating),
+      status: this.mapSupplierStatus(supplier),
+      verificationStatus: supplier.verificationStatus,
+      ordersCount: Number(orderStats?.orderCount || 0),
+      createdAt: supplier.createdAt,
+      description: supplier.description || null,
+    };
+  }
+
+  async getKycDocumentsByUserId(userId: string) {
+    const docs = await this.kycRepo.find({
+      where: { userId },
+      relations: ['user'],
+    });
+    return docs;
+  }
+
+  async getEscrowTransactionById(id: string) {
+    const t = await this.escrowRepo.findOne({ where: { id } });
+    if (!t) throw new NotFoundException('Escrow transaction not found');
+    return t;
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -835,7 +1059,9 @@ export class AdminService {
     return map[status] || status;
   }
 
-  private mapKycStatusToBackend(frontendStatus: string): VerificationStatus | null {
+  private mapKycStatusToBackend(
+    frontendStatus: string,
+  ): VerificationStatus | null {
     const map: Record<string, VerificationStatus> = {
       pending: VerificationStatus.PENDING,
       verified: VerificationStatus.VERIFIED,

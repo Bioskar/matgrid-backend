@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminController } from './controller/admin.controller';
 import { AdminService } from './service/admin.service';
+import { AdminSeederService } from './service/admin-seeder.service';
 import { EscrowTransaction } from './entities/escrow-transaction.entity';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { User } from '../auth/entities/user.entity';
@@ -27,6 +28,6 @@ import { LoggerProviderModule } from '../../common/modules/logger.module';
     LoggerProviderModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, AdminSeederService],
 })
 export class AdminModule {}

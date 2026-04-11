@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, Length, Matches, IsEnum, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, Length, Matches, IsIn, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
 
@@ -53,9 +53,11 @@ export class CompleteRegistrationDto {
   @ApiProperty({
     description: 'User role',
     example: 'contractor',
-    enum: UserRole
+    enum: [UserRole.CONTRACTOR, UserRole.SUPPLIER]
   })
-  @IsEnum(UserRole)
+  @IsIn([UserRole.CONTRACTOR, UserRole.SUPPLIER], {
+    message: 'userRole must be either contractor or supplier',
+  })
   @IsNotEmpty()
   userRole: UserRole;
 
