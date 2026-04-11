@@ -70,6 +70,21 @@ export class Supplier {
   @Column({ type: 'text', nullable: true })
   description?: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  rcNumber?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  tin?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  bankName?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  accountNumber?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  accountName?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

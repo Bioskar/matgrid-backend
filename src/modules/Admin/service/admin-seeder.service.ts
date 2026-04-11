@@ -25,15 +25,17 @@ export class AdminSeederService implements OnApplicationBootstrap {
       });
 
       if (existingAdmin) {
-        this.logger.log('Admin user already exists. Skipping seeded admin creation.');
+        this.logger.log(
+          'Admin user already exists. Skipping seeded admin creation.',
+        );
         return;
       }
 
       this.logger.log('No admin user found. Creating default admin...');
 
       // Admin credentials
-      const email = 'admin@matgrid.com';
-      const password = 'Admin@Pass123!';
+      const email = process.env.ADMIN_EMAIL;
+      const password = process.env.ADMIN_PASSWORD;
 
       // Hash password
       const salt = await bcrypt.genSalt(10);
@@ -52,7 +54,9 @@ export class AdminSeederService implements OnApplicationBootstrap {
 
       await this.userRepository.save(adminUser);
 
-      this.logger.log('Default admin user successfully created with email: admin@matgrid.com');
+      this.logger.log(
+        'Default admin user successfully created with email: admin@matgrid.com',
+      );
     } catch (error) {
       this.logger.error('Failed to seed admin user', error.stack);
     }
