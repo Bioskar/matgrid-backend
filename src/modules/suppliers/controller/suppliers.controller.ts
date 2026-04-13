@@ -7,6 +7,7 @@ import {
   Body,
   UseGuards,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { UserPayload } from '../../../common/interfaces/user-payload.interface';
@@ -175,6 +176,30 @@ export class SuppliersController {
     return this.suppliersService.getAllSuppliers(filters);
   }
 
+  @Get('profile')
+  @ApiOperation({ summary: 'Get supplier profile' })
+  getProfile(@CurrentUser() user: UserPayload) {
+    const userId = user.userId;
+    return this.suppliersService.getSupplierProfile(userId);
+  }
+
+  @Put('profile')
+  @ApiOperation({ summary: 'Update supplier profile' })
+  updateProfile(
+    @CurrentUser() user: UserPayload,
+    @Body() updateData: any,
+  ) {
+    const userId = user.userId;
+    return this.suppliersService.updateSupplierProfile(userId, updateData);
+  }
+
+  @Get('my-quotes')
+  @ApiOperation({ summary: 'Get quotes submitted by the supplier' })
+  getSubmittedQuotes(@CurrentUser() user: UserPayload) {
+    const supplierId = user.supplierId || user.userId;
+    return this.suppliersService.getSupplierSubmittedQuotes(supplierId);
+  }
+
   @Get(':supplierId')
   async getSupplierDetails(@Param('supplierId') supplierId: string) {
     return this.suppliersService.getSupplierDetails(supplierId);
@@ -265,5 +290,15 @@ export class SuppliersController {
     @Body() body: { status: string },
   ) {
     return this.suppliersService.updateSupplierQuoteStatus(supplierQuoteId, body.status);
+  }
+
+  @Get('requests/:quoteId')
+  @ApiOperation({ summary: 'Get details of a specific quote request' })
+  getRequestById(
+    @CurrentUser() user: UserPayload,
+    @Param('quoteId', ParseUUIDPipe) quoteId: string,
+  ) {
+    const supplierId = user.supplierId || user.userId;
+    return this.suppliersService.getIncomingRequestById(supplierId, quoteId);
   }
 }

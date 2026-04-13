@@ -342,15 +342,19 @@ export class SuppliersService {
     };
   }
 
-  /**
-   * Get incoming quote requests for a supplier
-   * Filtered by material categories they supply
-   */
   async getIncomingRequests(supplierId: string) {
     const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
     
     if (!supplier) {
       throw new BadRequestException('Supplier not found');
+    }
+
+    if (!supplier.materialCategories || supplier.materialCategories.length === 0) {
+      return {
+        success: true,
+        requests: [],
+        count: 0,
+      };
     }
 
     // Get quotes with materials matching supplier categories
@@ -471,6 +475,106 @@ export class SuppliersService {
         status: supplierQuote.status,
         createdAt: supplierQuote.createdAt,
       },
+    };
+  }
+
+  /**
+   * Get specific quote request details
+   */
+  async getIncomingRequestById(supplierId: string, quoteId: string) {
+    const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
+    if (!supplier) {
+      throw new BadRequestException('Supplier not found');
+    }
+
+    const quote = await this.quoteRepository.findOne({
+      where: { id: quoteId, status: 'open' },
+      relations: ['materials'],
+    });
+
+    if (!quote) {
+      throw new NotFoundException('Quote request not found or no longer available');
+    }
+
+    const matchesCount = quote.materials?.filter((m) =>
+      supplier.materialCategories.includes(m.category),
+    ).length;
+
+    if (matchesCount === 0) {
+      throw new BadRequestException('This quote does not match your product categories');
+    }
+
+    return {
+      success: true,
+      quote,
+    };
+  }
+
+  /**
+   * Get supplier profile
+   */
+  async getSupplierProfile(userId: string) {
+    const supplier = await this.supplierRepository.findOne({
+      where: { userId },
+      relations: ['user'],
+    });
+
+    if (!supplier) {
+      return this.getOrCreateSupplier(userId);
+    }
+
+    return {
+      success: true,
+      supplier,
+    };
+  }
+
+  /**
+   * Update supplier profile
+   */
+  async updateSupplierProfile(userId: string, updateData: any) {
+    const supplier = await this.supplierRepository.findOne({ where: { userId } });
+    if (!supplier) {
+      throw new NotFoundException('Supplier not found');
+    }
+
+    if (updateData.fullName || updateData.company || updateData.businessAddress) {
+      await this.userRepository.update(userId, {
+        ...(updateData.fullName && { fullName: updateData.fullName }),
+        ...(updateData.company && { company: updateData.company }),
+        ...(updateData.businessAddress && { businessAddress: updateData.businessAddress }),
+      });
+    }
+
+    const { fullName, company, businessAddress, email, phone, ...supplierData } = updateData;
+    await this.supplierRepository.update({ userId }, supplierData);
+
+    const updatedSupplier = await this.supplierRepository.findOne({
+      where: { userId },
+      relations: ['user'],
+    });
+
+    return {
+      success: true,
+      message: 'Profile updated successfully',
+      supplier: updatedSupplier,
+    };
+  }
+
+  /**
+   * Get quotes submitted by the supplier
+   */
+  async getSupplierSubmittedQuotes(supplierId: string) {
+    const supplierQuotes = await this.supplierQuoteRepository.find({
+      where: { supplierId },
+      relations: ['quote'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      success: true,
+      supplierQuotes,
+      count: supplierQuotes.length,
     };
   }
 }

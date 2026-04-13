@@ -89,6 +89,12 @@ export class Order {
   @Column({ type: 'timestamp', nullable: true })
   deliveredAt?: Date;
 
+  @Column({ type: 'timestamp', nullable: true })
+  disputedAt?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  completedAt?: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

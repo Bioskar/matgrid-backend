@@ -762,6 +762,138 @@ export class AdminService {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
+  // DETAILED GETTERS
+  // ────────────────────────────────────────────────────────────────────────────
+
+  async getRfqById(id: string) {
+    const q = await this.quoteRepo.findOne({
+      where: { id },
+      relations: ['user', 'materials'],
+    });
+    if (!q) throw new NotFoundException('RFQ not found');
+
+    const timeLeft = q.deadline
+      ? Math.max(
+          0,
+          Math.ceil(
+            (q.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          ),
+        )
+      : null;
+
+    return {
+      rfqId: q.id,
+      contractor: q.user?.fullName || q.user?.company || 'N/A',
+      contractorEmail: q.user?.email,
+      title: q.title,
+      description: q.description,
+      itemsCount: q.materialsCount || (q.materials?.length ?? 0),
+      materials: q.materials,
+      quotesCount: q.suppliersCount,
+      deadline: q.deadline,
+      timeLeftDays: timeLeft,
+      status: this.mapRfqStatus(q.status),
+      estimatedCost: Number(q.totalEstimatedCost),
+      currency: q.currency,
+      createdAt: q.createdAt,
+    };
+  }
+
+  async getOrderById(id: string) {
+    const o = await this.orderRepo.findOne({
+      where: { id },
+      relations: ['user', 'items'],
+    });
+    if (!o) throw new NotFoundException('Order not found');
+
+    return {
+      orderId: o.orderNumber,
+      contractor: o.user?.fullName || o.user?.company || 'N/A',
+      contractorEmail: o.user?.email,
+      suppliers: [
+        ...new Set((o.items || []).map((i) => i.id).filter(Boolean)), // Assuming supplier info needs extra join or we return items directly
+      ],
+      amount: Number(o.totalAmount),
+      currency: o.currency,
+      status: this.mapOrderStatus(o.status),
+      escrowStatus: o.escrowStatus,
+      items: o.items,
+      createdAt: o.createdAt,
+      id: o.id,
+      deliveryAddress: o.deliveryAddress || null,
+      trackingStatus: o.status,
+    };
+  }
+
+  async getContractorById(id: string) {
+    const contractor = await this.contractorRepo.findOne({
+      where: { userId: id },
+      relations: ['user'],
+    });
+    if (!contractor) throw new NotFoundException('Contractor not found');
+
+    const orderStats = await this.orderRepo
+      .createQueryBuilder('o')
+      .select('COUNT(o.id)', 'orderCount')
+      .addSelect('COALESCE(SUM(o.totalAmount), 0)', 'contractValue')
+      .where('o.userId = :id', { id })
+      .getRawOne();
+
+    return {
+      id: contractor.userId,
+      name: contractor.fullName,
+      email: contractor.user?.email,
+      company: contractor.company,
+      businessAddress: contractor.businessAddress || null,
+      status: contractor.status,
+      ordersCount: Number(orderStats?.orderCount || 0),
+      contractValue: Number(orderStats?.contractValue || 0),
+      createdAt: contractor.createdAt,
+    };
+  }
+
+  async getSupplierById(id: string) {
+    const supplier = await this.supplierRepo.findOne({
+      where: { userId: id },
+      relations: ['user'],
+    });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+
+    const orderStats = await this.orderRepo
+      .createQueryBuilder('o')
+      .innerJoin('o.items', 'i')
+      .select('COUNT(DISTINCT o.id)', 'orderCount')
+      .where('i.supplierId = :id', { id })
+      .getRawOne();
+
+    return {
+      id: supplier.userId,
+      name: supplier.name,
+      email: supplier.user?.email,
+      rating: Number(supplier.rating),
+      status: this.mapSupplierStatus(supplier),
+      verificationStatus: supplier.verificationStatus,
+      ordersCount: Number(orderStats?.orderCount || 0),
+      createdAt: supplier.createdAt,
+      description: supplier.description || null,
+    };
+  }
+
+  async getKycDocumentsByUserId(userId: string) {
+    const docs = await this.kycRepo.find({
+      where: { userId },
+      relations: ['user'],
+    });
+    return docs;
+  }
+
+  async getEscrowTransactionById(id: string) {
+    const t = await this.escrowRepo.findOne({ where: { id } });
+    if (!t) throw new NotFoundException('Escrow transaction not found');
+    return t;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
   // PRIVATE MAPPERS
   // ────────────────────────────────────────────────────────────────────────────
 

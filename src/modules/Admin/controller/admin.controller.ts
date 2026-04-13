@@ -157,6 +157,14 @@ export class AdminController {
     return this.adminService.getRfqs(query);
   }
 
+  @Get('rfq/:id')
+  @ApiOperation({ summary: 'Get RFQ by ID' })
+  @ApiParam({ name: 'id', description: 'RFQ UUID' })
+  @ApiResponse({ status: 200, description: 'Returns full RFQ details' })
+  getRfqById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getRfqById(id);
+  }
+
   // ── Order Management ──────────────────────────────────────────────────────
 
   @Get('orders/stats')
@@ -223,6 +231,14 @@ export class AdminController {
   })
   getOrders(@Query() query: ListQueryDto) {
     return this.adminService.getOrders(query);
+  }
+
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Get Order by ID' })
+  @ApiParam({ name: 'id', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Returns full order details' })
+  getOrderById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getOrderById(id);
   }
 
   @Put('orders/:id/resolve')
@@ -325,6 +341,14 @@ export class AdminController {
     return this.adminService.getContractors(query);
   }
 
+  @Get('contractors/:id')
+  @ApiOperation({ summary: 'Get Contractor by ID' })
+  @ApiParam({ name: 'id', description: 'Contractor User UUID' })
+  @ApiResponse({ status: 200, description: 'Returns full contractor details' })
+  getContractorById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getContractorById(id);
+  }
+
   @Put('contractors/:id/suspend')
   @ApiOperation({
     summary: 'Suspend a contractor',
@@ -417,6 +441,14 @@ export class AdminController {
   })
   getSuppliers(@Query() query: ListQueryDto) {
     return this.adminService.getSuppliers(query);
+  }
+
+  @Get('suppliers/:id')
+  @ApiOperation({ summary: 'Get Supplier by ID' })
+  @ApiParam({ name: 'id', description: 'Supplier User UUID' })
+  @ApiResponse({ status: 200, description: 'Returns full supplier details' })
+  getSupplierById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getSupplierById(id);
   }
 
   @Put('suppliers/:id/suspend')
@@ -550,6 +582,14 @@ export class AdminController {
     return this.adminService.getEscrowTransactions(query);
   }
 
+  @Get('finance/:id')
+  @ApiOperation({ summary: 'Get Escrow Transaction by ID' })
+  @ApiParam({ name: 'id', description: 'Escrow Transaction UUID' })
+  @ApiResponse({ status: 200, description: 'Returns full transaction details' })
+  getEscrowTransactionById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getEscrowTransactionById(id);
+  }
+
   @Put('finance/:id/release')
   @ApiOperation({
     summary: 'Release escrow funds (from finance view)',
@@ -629,6 +669,14 @@ export class AdminController {
   })
   getKycSubmissions(@Query() query: ListQueryDto) {
     return this.adminService.getKycSubmissions(query);
+  }
+
+  @Get('kyc/:userId/documents')
+  @ApiOperation({ summary: 'Get KYC documents for a user' })
+  @ApiParam({ name: 'userId', description: 'User UUID' })
+  @ApiResponse({ status: 200, description: 'Returns list of actual uploaded KYC docs' })
+  getKycDocuments(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.adminService.getKycDocumentsByUserId(userId);
   }
 
   @Put('kyc/:userId/approve')

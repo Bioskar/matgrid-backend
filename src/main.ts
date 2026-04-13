@@ -110,8 +110,10 @@ async function bootstrap() {
   app.use(compression());
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') || '*',
+    origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:5173',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   app.useGlobalPipes(
@@ -136,6 +138,7 @@ async function bootstrap() {
       .addTag('Materials', 'Material management and quote operations')
       .addTag('Quotes', 'Quote management endpoints')
       .addTag('Suppliers', 'Supplier management and quote comparison')
+      .addTag('Admin', 'Admin panel — platform oversight, escrow, KYC, and system settings')
       .addBearerAuth(
         {
           type: 'http',
