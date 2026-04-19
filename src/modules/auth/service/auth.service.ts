@@ -681,29 +681,15 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
-    // Send OTP via SMS or Email
-    const phoneNumber = user.phoneNumber || user.email;
-    const smsSent =
-      phoneNumber && phoneNumber.match(/^[0-9+\-\s()]+$/)
-        ? await this.smsService.sendOtp(phoneNumber, otp)
-        : false;
-
-    if (!smsSent && process.env.NODE_ENV === 'development') {
-      this.logger.info(
-        { emailOrPhone, otp },
-        'SignIn OTP generated (DEV MODE)',
-      );
-    }
-
     return {
       success: true,
-      message: smsSent
+      message: smsResult.success
         ? 'OTP sent to your phone number'
         : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       emailOrPhone,
       expiresAt,
       ...(process.env.NODE_ENV === 'development' &&
-        !this.smsService.isServiceEnabled() && { otp }),
+        !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
     };
   }
 
