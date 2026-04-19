@@ -205,30 +205,6 @@ export class SuppliersController {
     return this.suppliersService.getAllSuppliers(filters);
   }
 
-  @Get('profile')
-  @ApiOperation({ summary: 'Get supplier profile' })
-  getProfile(@CurrentUser() user: UserPayload) {
-    const userId = user.userId;
-    return this.suppliersService.getSupplierProfile(userId);
-  }
-
-  @Put('profile')
-  @ApiOperation({ summary: 'Update supplier profile' })
-  updateProfile(
-    @CurrentUser() user: UserPayload,
-    @Body() updateData: any,
-  ) {
-    const userId = user.userId;
-    return this.suppliersService.updateSupplierProfile(userId, updateData);
-  }
-
-  @Get('my-quotes')
-  @ApiOperation({ summary: 'Get quotes submitted by the supplier' })
-  getSubmittedQuotes(@CurrentUser() user: UserPayload) {
-    const supplierId = user.supplierId || user.userId;
-    return this.suppliersService.getSupplierSubmittedQuotes(supplierId);
-  }
-
   @Get(':supplierId')
   async getSupplierDetails(@Param('supplierId') supplierId: string) {
     return this.suppliersService.getSupplierDetails(supplierId);

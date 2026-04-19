@@ -30,10 +30,6 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'matgridv2',
 
-  ssl: {
-    rejectUnauthorized: false,
-  },
-
   entities: ['src/**/*.entity{.ts,.js}'],
   migrations: ['src/database/migrations/**/*{.ts,.js}'],
 
