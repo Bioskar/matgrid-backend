@@ -19,35 +19,23 @@ export class AdminSeederService implements OnApplicationBootstrap {
 
   private async seedAdmin() {
     try {
-      // Admin credentials from env or defaults
-      const email = process.env.ADMIN_SEED_EMAIL || 'admin@matgrid.com';
-      const password = process.env.ADMIN_SEED_PASSWORD || 'Admin@matgrid1';
-
-      // Check if an admin already exists with this email
+      // Check if an admin already exists
       const existingAdmin = await this.userRepository.findOne({
-        where: { email: email.toLowerCase() },
+        where: { userRole: UserRole.ADMIN },
       });
 
       if (existingAdmin) {
         this.logger.log(
-          `Admin user (${email}) already exists. Skipping seeded admin creation.`,
+          'Admin user already exists. Skipping seeded admin creation.',
         );
         return;
       }
 
-      // Check if ANY admin exists (to be safe)
-      const anyAdmin = await this.userRepository.findOne({
-        where: { userRole: UserRole.ADMIN },
-      });
+      this.logger.log('No admin user found. Creating default admin...');
 
-      if (anyAdmin) {
-        this.logger.log(
-          'An admin user already exists in the system. Skipping seeding.',
-        );
-        return;
-      }
-
-      this.logger.log(`No admin user found. Creating default admin (${email})...`);
+      // Admin credentials
+      const email = process.env.ADMIN_EMAIL;
+      const password = process.env.ADMIN_PASSWORD;
 
       // Hash password
       const salt = await bcrypt.genSalt(10);
@@ -55,20 +43,19 @@ export class AdminSeederService implements OnApplicationBootstrap {
 
       // Create admin user
       const adminUser = this.userRepository.create({
-        email: email.toLowerCase(),
+        email,
         password: hashedPassword,
-        fullName: 'MatGrid Admin',
+        fullName: 'System Admin',
         userRole: UserRole.ADMIN,
         isEmailVerified: true,
         isPhoneVerified: true,
         isActive: true,
-        twoFactorEnabled: false,
       });
 
       await this.userRepository.save(adminUser);
 
       this.logger.log(
-        `✓ Default admin user successfully created: ${email}`,
+        'Default admin user successfully created with email: admin@matgrid.com',
       );
     } catch (error) {
       this.logger.error('Failed to seed admin user', error.stack);

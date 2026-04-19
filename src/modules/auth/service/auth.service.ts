@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, Inject, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Inject,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -8,7 +13,11 @@ import { User, UserRole } from '../entities/user.entity';
 import { UserOtp } from '../entities/user-otp.entity';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
-import { SendOtpDto, VerifyOtpDto, CompleteRegistrationDto } from '../dto/otp-auth.dto';
+import {
+  SendOtpDto,
+  VerifyOtpDto,
+  CompleteRegistrationDto,
+} from '../dto/otp-auth.dto';
 import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserResponseDto, AuthResponseDto } from '../dto/user-response.dto';
@@ -31,28 +40,31 @@ export class AuthService {
    * Validates uniqueness and hashes password before storage
    */
   async register(registerDto: RegisterDto) {
-    const { email, phoneNumber, password, fullName, company, userRole } = registerDto;
+    const { email, phoneNumber, password, fullName, company, userRole } =
+      registerDto;  
 
     // Validate at least one contact method provided
     if (!email && !phoneNumber) {
-      this.logger.warn({ hasEmail: !!email, hasPhone: !!phoneNumber }, 'Register: No contact method provided');
+      this.logger.warn(
+        { hasEmail: !!email, hasPhone: !!phoneNumber },
+        'Register: No contact method provided',
+      );
       throw new BadRequestException('Either email or phone number is required');
     }
 
     // Check if user already exists with email or phone
     const existingUser = await this.userRepository.findOne({
-      where: [
-        { email: email?.toLowerCase() },
-        { phoneNumber },
-      ],
+      where: [{ email: email?.toLowerCase() }, { phoneNumber }],
     });
 
     if (existingUser) {
       this.logger.warn(
         { email: email?.toLowerCase(), phoneNumber },
-        'Register: User already exists'
+        'Register: User already exists',
       );
-      throw new BadRequestException('User already exists with this email or phone number');
+      throw new BadRequestException(
+        'User already exists with this email or phone number',
+      );
     }
 
     // Hash password with bcrypt (10 rounds)
@@ -77,7 +89,7 @@ export class AuthService {
 
     this.logger.info(
       { userId: user.id, email: user.email, method: email ? 'email' : 'phone' },
-      'User registered successfully'
+      'User registered successfully',
     );
 
     // Return user without password
@@ -109,8 +121,11 @@ export class AuthService {
 
     if (!user) {
       this.logger.warn(
-        { attemptedCredential: emailOrPhone, isEmail: emailOrPhone.includes('@') },
-        'Login: User not found'
+        {
+          attemptedCredential: emailOrPhone,
+          isEmail: emailOrPhone.includes('@'),
+        },
+        'Login: User not found',
       );
       throw new BadRequestException('User not found');
     }
@@ -121,7 +136,7 @@ export class AuthService {
     if (!isPasswordValid) {
       this.logger.warn(
         { userId: user.id, email: user.email },
-        'Login: Invalid password'
+        'Login: Invalid password',
       );
       throw new BadRequestException('Invalid password');
     }
@@ -131,7 +146,7 @@ export class AuthService {
       // Generate temporary token for 2FA verification
       const tempToken = this.jwtService.sign(
         { userId: user.id, type: '2fa', emailOrPhone },
-        { expiresIn: '15m' }
+        { expiresIn: '15m' },
       );
 
       this.logger.info({ userId: user.id }, 'Login: 2FA required');
@@ -152,8 +167,12 @@ export class AuthService {
     const tokens = await this.generateTokens(user.id, user.userRole);
 
     this.logger.info(
-      { userId: user.id, email: user.email, method: emailOrPhone.includes('@') ? 'email' : 'phone' },
-      'User logged in successfully'
+      {
+        userId: user.id,
+        email: user.email,
+        method: emailOrPhone.includes('@') ? 'email' : 'phone',
+      },
+      'User logged in successfully',
     );
 
     // Return user without password
@@ -177,7 +196,18 @@ export class AuthService {
 
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'email', 'phoneNumber', 'fullName', 'company', 'isEmailVerified', 'isPhoneVerified', 'isActive', 'createdAt', 'updatedAt'],
+      select: [
+        'id',
+        'email',
+        'phoneNumber',
+        'fullName',
+        'company',
+        'isEmailVerified',
+        'isPhoneVerified',
+        'isActive',
+        'createdAt',
+        'updatedAt',
+      ],
     });
 
     if (!user) {
@@ -243,9 +273,16 @@ export class AuthService {
     });
 
     if (recentOtp) {
-      const waitTime = Math.ceil((60000 - (Date.now() - recentOtp.createdAt.getTime())) / 1000);
-      throw new BadRequestException(`Please wait ${waitTime} seconds before requesting another OTP`);
+      const waitTime = Math.ceil(
+        (60000 - (Date.now() - recentOtp.createdAt.getTime())) / 1000,
+      );
+      throw new BadRequestException(
+        `Please wait ${waitTime} seconds before requesting another OTP`,
+      );
     }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Set expiry to 10 minutes
     const expiresAt = new Date(Date.now() + 10 * 60000);
@@ -276,23 +313,40 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
+    console.log(otp);
+
+    // Send OTP via SMS
+    // const smsSent = await this.smsService.sendOtp(phoneNumber, otp);
+
+    // if (!smsSent) {
+    //   if (this.smsService.isServiceEnabled()) {
+    //     // SMS service is enabled but failed to send
+    //     this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
+    //     throw new BadRequestException('Failed to send OTP. Please try again.');
+    //   } else {
+    //     // SMS service is disabled (no credentials)
+    //     this.logger.warn({ phoneNumber, otp }, 'SMS service disabled - OTP not sent (DEV MODE)');
+    //   }
+    // }
+
     // Log OTP in development mode only
-    if (process.env.NODE_ENV === 'development') {
-      this.logger.info(
-        { phoneNumber, otp: smsResult.otp, pinId: smsResult.pinId, expiresAt, smsSent: smsResult.success },
-        'OTP generated for user'
-      );
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   this.logger.info(
+    //     { phoneNumber, otp, expiresAt, smsSent },
+    //     'OTP generated for user'
+    //   );
+    // }
 
     return {
       success: true,
-      message: smsResult.success 
-        ? 'OTP sent to your phone number'
-        : 'OTP generated (SMS disabled - DEV MODE ONLY)',
+      // message: smsSent
+      //   ? 'OTP sent to your phone number'
+      //   : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       phoneNumber,
       expiresAt,
       // Only include OTP in dev when SMS is completely disabled (no credentials)
-      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
+      ...(process.env.NODE_ENV === 'development' &&
+        !this.smsService.isServiceEnabled() && { otp }),
     };
   }
 
@@ -317,12 +371,16 @@ export class AuthService {
 
     // Check if OTP expired
     if (new Date() > otpEntity.expiresAt) {
-      throw new BadRequestException('OTP has expired. Please request a new one');
+      throw new BadRequestException(
+        'OTP has expired. Please request a new one',
+      );
     }
 
     // Check max attempts (3 attempts)
     if (otpEntity.attempts >= 3) {
-      throw new BadRequestException('Maximum verification attempts exceeded. Please request a new OTP');
+      throw new BadRequestException(
+        'Maximum verification attempts exceeded. Please request a new OTP',
+      );
     }
 
     let isValid = false;
@@ -341,8 +399,10 @@ export class AuthService {
     if (!isValid) {
       otpEntity.attempts += 1;
       await this.otpRepository.save(otpEntity);
-      
-      throw new BadRequestException(`Invalid OTP. ${3 - otpEntity.attempts} attempts remaining`);
+
+      throw new BadRequestException(
+        `Invalid OTP. ${3 - otpEntity.attempts} attempts remaining`,
+      );
     }
 
     // Mark as verified
@@ -352,7 +412,7 @@ export class AuthService {
     // Generate temporary token (15 minutes) for registration
     const tempToken = this.jwtService.sign(
       { phoneNumber, type: 'registration' },
-      { expiresIn: '15m' }
+      { expiresIn: '15m' },
     );
 
     this.logger.info({ phoneNumber }, 'User OTP verified successfully');
@@ -368,16 +428,24 @@ export class AuthService {
   /**
    * Complete registration after OTP verification
    */
-  async completeRegistration(registrationDto: CompleteRegistrationDto, tempToken: string) {
+  async completeRegistration(
+    registrationDto: CompleteRegistrationDto,
+    tempToken: string,
+  ) {
     try {
       // Verify temp token
       const payload = this.jwtService.verify(tempToken);
-      
-      if (payload.type !== 'registration' || payload.phoneNumber !== registrationDto.phoneNumber) {
+
+      if (
+        payload.type !== 'registration' ||
+        payload.phoneNumber !== registrationDto.phoneNumber
+      ) {
         throw new BadRequestException('Invalid registration token');
       }
     } catch (error) {
-      throw new BadRequestException('Registration token expired or invalid. Please verify your phone number again');
+      throw new BadRequestException(
+        'Registration token expired or invalid. Please verify your phone number again',
+      );
     }
 
     // Verify OTP was completed
@@ -390,7 +458,9 @@ export class AuthService {
     });
 
     if (!verifiedOtp) {
-      throw new BadRequestException('Phone number not verified. Please complete OTP verification first');
+      throw new BadRequestException(
+        'Phone number not verified. Please complete OTP verification first',
+      );
     }
 
     // Check if user already exists
@@ -400,10 +470,17 @@ export class AuthService {
 
     if (existingUser) {
       // Return existing user with tokens
-      const tokens = await this.generateTokens(existingUser.id, existingUser.userRole);
-      
-      const { password: _, refreshToken: __, ...userWithoutPassword } = existingUser;
-      
+      const tokens = await this.generateTokens(
+        existingUser.id,
+        existingUser.userRole,
+      );
+
+      const {
+        password: _,
+        refreshToken: __,
+        ...userWithoutPassword
+      } = existingUser;
+
       return {
         success: true,
         message: 'User already registered',
@@ -430,8 +507,12 @@ export class AuthService {
     const tokens = await this.generateTokens(user.id, user.userRole);
 
     this.logger.info(
-      { userId: user.id, phoneNumber: user.phoneNumber, userRole: user.userRole },
-      'User registered successfully via OTP'
+      {
+        userId: user.id,
+        phoneNumber: user.phoneNumber,
+        userRole: user.userRole,
+      },
+      'User registered successfully via OTP',
     );
 
     // Return user without password
@@ -452,17 +533,19 @@ export class AuthService {
   private async generateTokens(userId: string, userRole: string) {
     const accessToken = this.jwtService.sign(
       { userId, userRole },
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
 
     const refreshToken = this.jwtService.sign(
       { userId, type: 'refresh' },
-      { expiresIn: '30d' }
+      { expiresIn: '30d' },
     );
 
     // Hash and store refresh token
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-    await this.userRepository.update(userId, { refreshToken: hashedRefreshToken });
+    await this.userRepository.update(userId, {
+      refreshToken: hashedRefreshToken,
+    });
 
     return { accessToken, refreshToken };
   }
@@ -491,7 +574,10 @@ export class AuthService {
       }
 
       // Verify refresh token matches stored hash
-      const isValidRefreshToken = await bcrypt.compare(refreshToken, user.refreshToken);
+      const isValidRefreshToken = await bcrypt.compare(
+        refreshToken,
+        user.refreshToken,
+      );
 
       if (!isValidRefreshToken) {
         throw new UnauthorizedException('Invalid refresh token');
@@ -532,7 +618,10 @@ export class AuthService {
     });
 
     if (!user) {
-      this.logger.warn({ attemptedCredential: emailOrPhone }, 'SignIn OTP: User not found');
+      this.logger.warn(
+        { attemptedCredential: emailOrPhone },
+        'SignIn OTP: User not found',
+      );
       throw new BadRequestException('User not found');
     }
 
@@ -546,7 +635,9 @@ export class AuthService {
 
     // Check if 2FA is enabled
     if (!user.twoFactorEnabled) {
-      throw new BadRequestException('Two-factor authentication is not enabled for this account');
+      throw new BadRequestException(
+        'Two-factor authentication is not enabled for this account',
+      );
     }
 
     // Check for recent OTP requests (rate limiting - 1 per minute)
@@ -559,8 +650,12 @@ export class AuthService {
     });
 
     if (recentOtp) {
-      const waitTime = Math.ceil((60000 - (Date.now() - recentOtp.createdAt.getTime())) / 1000);
-      throw new BadRequestException(`Please wait ${waitTime} seconds before requesting another OTP`);
+      const waitTime = Math.ceil(
+        (60000 - (Date.now() - recentOtp.createdAt.getTime())) / 1000,
+      );
+      throw new BadRequestException(
+        `Please wait ${waitTime} seconds before requesting another OTP`,
+      );
     }
 
     // Set expiry to 10 minutes
@@ -586,14 +681,29 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
+    // Send OTP via SMS or Email
+    const phoneNumber = user.phoneNumber || user.email;
+    const smsSent =
+      phoneNumber && phoneNumber.match(/^[0-9+\-\s()]+$/)
+        ? await this.smsService.sendOtp(phoneNumber, otp)
+        : false;
+
+    if (!smsSent && process.env.NODE_ENV === 'development') {
+      this.logger.info(
+        { emailOrPhone, otp },
+        'SignIn OTP generated (DEV MODE)',
+      );
+    }
+
     return {
       success: true,
-      message: smsResult.success 
+      message: smsSent
         ? 'OTP sent to your phone number'
         : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       emailOrPhone,
       expiresAt,
-      ...(process.env.NODE_ENV === 'development' && !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
+      ...(process.env.NODE_ENV === 'development' &&
+        !this.smsService.isServiceEnabled() && { otp }),
     };
   }
 
@@ -630,12 +740,16 @@ export class AuthService {
 
     // Check if OTP expired
     if (new Date() > otpEntity.expiresAt) {
-      throw new BadRequestException('OTP has expired. Please request a new one');
+      throw new BadRequestException(
+        'OTP has expired. Please request a new one',
+      );
     }
 
     // Check max attempts
     if (otpEntity.attempts >= 3) {
-      throw new BadRequestException('Maximum verification attempts exceeded. Please request a new OTP');
+      throw new BadRequestException(
+        'Maximum verification attempts exceeded. Please request a new OTP',
+      );
     }
 
     let isValid = false;
@@ -654,7 +768,9 @@ export class AuthService {
     if (!isValid) {
       otpEntity.attempts += 1;
       await this.otpRepository.save(otpEntity);
-      throw new BadRequestException(`Invalid OTP. ${3 - otpEntity.attempts} attempts remaining`);
+      throw new BadRequestException(
+        `Invalid OTP. ${3 - otpEntity.attempts} attempts remaining`,
+      );
     }
 
     // Mark as verified
@@ -668,7 +784,10 @@ export class AuthService {
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.userRole);
 
-    this.logger.info({ userId: user.id }, 'User logged in successfully with 2FA');
+    this.logger.info(
+      { userId: user.id },
+      'User logged in successfully with 2FA',
+    );
 
     // Return user without password
     const { password: _, refreshToken: __, ...userWithoutPassword } = user;
@@ -694,7 +813,9 @@ export class AuthService {
 
     // Verify user has phone number for 2FA
     if (enable && !user.phoneNumber) {
-      throw new BadRequestException('Phone number required to enable two-factor authentication');
+      throw new BadRequestException(
+        'Phone number required to enable two-factor authentication',
+      );
     }
 
     user.twoFactorEnabled = enable;

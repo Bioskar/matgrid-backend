@@ -12,6 +12,14 @@ export class UploadDocumentDto {
   documentType: DocumentType;
 
   @ApiPropertyOptional({
+    description: 'The uploaded file',
+    type: 'string',
+    format: 'binary',
+  })
+  @IsOptional()
+  file?: any;
+
+  @ApiPropertyOptional({
     description: 'Document number (e.g., NIN number, License number)',
     example: '12345678901',
   })
