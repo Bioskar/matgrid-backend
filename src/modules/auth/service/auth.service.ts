@@ -173,14 +173,22 @@ export class AuthService {
    * Used for profile retrieval
    */
   async getUserById(userId: string) {
+    this.logger.info({ userId }, '[Auth] Fetching user by ID');
+
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: ['id', 'email', 'phoneNumber', 'fullName', 'company', 'isEmailVerified', 'isPhoneVerified', 'isActive', 'createdAt', 'updatedAt'],
     });
 
     if (!user) {
+      this.logger.warn({ userId }, '[Auth] User not found');
       throw new BadRequestException('User not found');
     }
+
+    this.logger.info(
+      { userId, email: user.email, phoneNumber: user.phoneNumber },
+      '[Auth] User retrieved successfully'
+    );
 
     return user;
   }
@@ -190,10 +198,16 @@ export class AuthService {
    * Excludes password from response
    */
   async updateProfile(userId: string, updateData: any) {
+    this.logger.info(
+      { userId, updatedFields: Object.keys(updateData) },
+      '[Auth] Updating user profile'
+    );
+
     // Get existing user
     const user = await this.userRepository.findOne({ where: { id: userId } });
 
     if (!user) {
+      this.logger.warn({ userId }, '[Auth] User not found for profile update');
       throw new BadRequestException('User not found');
     }
 
@@ -202,6 +216,11 @@ export class AuthService {
 
     // Save updated user
     await this.userRepository.save(user);
+
+    this.logger.info(
+      { userId, email: user.email },
+      '[Auth] User profile updated successfully'
+    );
 
     // Return user without password
     const { password, ...userWithoutPassword } = user;
@@ -490,7 +509,10 @@ export class AuthService {
         message: 'Token refreshed successfully',
       };
     } catch (error) {
-      this.logger.warn({ error: error.message }, 'Token refresh failed');
+      this.logger.warn(
+        { error: error instanceof Error ? error.message : 'Unknown error' },
+        'Token refresh failed'
+      );
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }

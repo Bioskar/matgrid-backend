@@ -25,6 +25,11 @@ export class SuppliersService {
   ) {}
 
   async getOrCreateSupplier(userId: string): Promise<Supplier> {
+    this.logger.info(
+      { userId },
+      '[Suppliers] Getting or creating supplier profile'
+    );
+
     let supplier = await this.supplierRepository.findOne({
       where: { userId },
       relations: ['user'],
@@ -36,6 +41,7 @@ export class SuppliersService {
       });
 
       if (!user) {
+        this.logger.warn({ userId }, '[Suppliers] User not found or not a supplier');
         throw new NotFoundException('User not found or not a supplier');
       }
 
@@ -49,6 +55,11 @@ export class SuppliersService {
 
       supplier = await this.supplierRepository.save(supplier);
       supplier.user = user;
+
+      this.logger.info(
+        { userId, supplierName: supplier.name },
+        '[Suppliers] Supplier profile created'
+      );
     }
 
     return supplier;
@@ -59,10 +70,16 @@ export class SuppliersService {
    * Matches suppliers by material categories
    */
   async searchSuppliers(quoteId: string, filters: any = {}) {
+    this.logger.info(
+      { quoteId, filters },
+      '[Suppliers] Searching suppliers for quote'
+    );
+
     // Get materials for the quote
     const materials = await this.materialRepository.find({ where: { quoteId } });
 
     if (materials.length === 0) {
+      this.logger.warn({ quoteId }, '[Suppliers] No materials found in quote');
       throw new BadRequestException('No materials found in quote');
     }
 
@@ -88,6 +105,11 @@ export class SuppliersService {
       .limit(20)
       .getMany();
 
+    this.logger.info(
+      { quoteId, suppliersFound: suppliers.length, categories },
+      '[Suppliers] Supplier search completed'
+    );
+
     return {
       success: true,
       suppliers,
@@ -99,6 +121,11 @@ export class SuppliersService {
    * Get all active suppliers with optional filters
    */
   async getAllSuppliers(filters: any = {}) {
+    this.logger.info(
+      { filters },
+      '[Suppliers] Fetching all suppliers'
+    );
+
     const queryBuilder = this.supplierRepository
       .createQueryBuilder('supplier')
       .where('supplier.isActive = :isActive', { isActive: true });
@@ -117,6 +144,11 @@ export class SuppliersService {
       .orderBy('supplier.rating', 'DESC')
       .getMany();
 
+    this.logger.info(
+      { suppliersCount: suppliers.length },
+      '[Suppliers] Suppliers retrieved'
+    );
+
     return {
       success: true,
       suppliers,
@@ -127,11 +159,19 @@ export class SuppliersService {
    * Get supplier details by ID
    */
   async getSupplierDetails(supplierId: string) {
+    this.logger.info({ supplierId }, '[Suppliers] Fetching supplier details');
+
     const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
 
     if (!supplier) {
+      this.logger.warn({ supplierId }, '[Suppliers] Supplier not found');
       throw new BadRequestException('Supplier not found');
     }
+
+    this.logger.info(
+      { supplierId, supplierName: supplier.name },
+      '[Suppliers] Supplier details retrieved'
+    );
 
     return {
       success: true,
@@ -144,10 +184,19 @@ export class SuppliersService {
    * Calculates total cost from materials data
    */
   async createSupplierQuote(quoteId: string, supplierId: string, materialsData: any[]) {
+    this.logger.info(
+      { quoteId, supplierId, materialsCount: materialsData.length },
+      '[Suppliers] Creating supplier quote'
+    );
+
     const quote = await this.quoteRepository.findOne({ where: { id: quoteId } });
     const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
 
     if (!quote || !supplier) {
+      this.logger.warn(
+        { quoteId, supplierId, quoteFound: !!quote, supplierFound: !!supplier },
+        '[Suppliers] Quote or Supplier not found'
+      );
       throw new BadRequestException('Quote or Supplier not found');
     }
 
@@ -171,6 +220,11 @@ export class SuppliersService {
     quote.suppliersCount = await this.supplierQuoteRepository.count({ where: { quoteId } });
     await this.quoteRepository.save(quote);
 
+    this.logger.info(
+      { quoteId, supplierId, supplierQuoteId: supplierQuote.id, totalCost },
+      '[Suppliers] Supplier quote created'
+    );
+
     return {
       success: true,
       supplierQuote,
@@ -182,11 +236,18 @@ export class SuppliersService {
    * Sorted by total cost (lowest first)
    */
   async getSupplierQuotes(quoteId: string) {
+    this.logger.info({ quoteId }, '[Suppliers] Fetching supplier quotes');
+
     const supplierQuotes = await this.supplierQuoteRepository.find({
       where: { quoteId },
       relations: ['supplier'],
       order: { totalCost: 'ASC' },
     });
+
+    this.logger.info(
+      { quoteId, quotesCount: supplierQuotes.length },
+      '[Suppliers] Supplier quotes retrieved'
+    );
 
     return {
       success: true,
@@ -199,6 +260,11 @@ export class SuppliersService {
    * Used in "Choose Your Suppliers" screen
    */
   async getSupplierQuotesGrouped(quoteId: string) {
+    this.logger.info(
+      { quoteId },
+      '[Suppliers] Fetching grouped supplier quotes for comparison'
+    );
+
     const supplierQuotes = await this.supplierQuoteRepository.find({
       where: { quoteId },
       relations: ['supplier'],
@@ -209,6 +275,10 @@ export class SuppliersService {
     });
 
     if (supplierQuotes.length === 0) {
+      this.logger.warn(
+        { quoteId },
+        '[Suppliers] No supplier quotes received yet'
+      );
       return {
         success: true,
         message: 'No supplier quotes received yet',
@@ -289,6 +359,11 @@ export class SuppliersService {
       sum + (group.lowestPrice || 0), 0
     );
 
+    this.logger.info(
+      { quoteId, categoriesCount: groupedQuotes.length, totalEstimate, suppliersCount: supplierQuotes.length },
+      '[Suppliers] Grouped supplier quotes retrieved'
+    );
+
     return {
       success: true,
       quoteId,
@@ -303,16 +378,28 @@ export class SuppliersService {
    * Update supplier quote status
    */
   async updateSupplierQuoteStatus(supplierQuoteId: string, status: string) {
+    this.logger.info(
+      { supplierQuoteId, newStatus: status },
+      '[Suppliers] Updating supplier quote status'
+    );
+
     const supplierQuote = await this.supplierQuoteRepository.findOne({
       where: { id: supplierQuoteId }
     });
 
     if (!supplierQuote) {
+      this.logger.warn({ supplierQuoteId }, '[Suppliers] Supplier quote not found');
       throw new BadRequestException('Supplier quote not found');
     }
 
+    const oldStatus = supplierQuote.status;
     supplierQuote.status = status;
     await this.supplierQuoteRepository.save(supplierQuote);
+
+    this.logger.info(
+      { supplierQuoteId, oldStatus, newStatus: status },
+      '[Suppliers] Supplier quote status updated'
+    );
 
     return {
       success: true,
@@ -325,6 +412,11 @@ export class SuppliersService {
    * Returns all suppliers sorted by cost
    */
   async getBestSupplierForQuote(quoteId: string) {
+    this.logger.info(
+      { quoteId },
+      '[Suppliers] Finding best supplier for quote'
+    );
+
     const quotes = await this.supplierQuoteRepository.find({
       where: { quoteId },
       relations: ['supplier'],
@@ -332,8 +424,14 @@ export class SuppliersService {
     });
 
     if (quotes.length === 0) {
+      this.logger.warn({ quoteId }, '[Suppliers] No supplier quotes found');
       throw new BadRequestException('No supplier quotes found');
     }
+
+    this.logger.info(
+      { quoteId, bestSupplier: quotes[0].supplierId, lowestCost: quotes[0].totalCost },
+      '[Suppliers] Best supplier identified'
+    );
 
     return {
       success: true,
@@ -482,8 +580,14 @@ export class SuppliersService {
    * Get specific quote request details
    */
   async getIncomingRequestById(supplierId: string, quoteId: string) {
+    this.logger.info(
+      { supplierId, quoteId },
+      '[Suppliers] Fetching specific quote request'
+    );
+
     const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
     if (!supplier) {
+      this.logger.warn({ supplierId }, '[Suppliers] Supplier not found');
       throw new BadRequestException('Supplier not found');
     }
 
@@ -493,6 +597,7 @@ export class SuppliersService {
     });
 
     if (!quote) {
+      this.logger.warn({ supplierId, quoteId }, '[Suppliers] Quote not found');
       throw new NotFoundException('Quote request not found or no longer available');
     }
 
@@ -501,8 +606,17 @@ export class SuppliersService {
     ).length;
 
     if (matchesCount === 0) {
+      this.logger.warn(
+        { supplierId, quoteId },
+        '[Suppliers] Quote does not match supplier categories'
+      );
       throw new BadRequestException('This quote does not match your product categories');
     }
+
+    this.logger.info(
+      { supplierId, quoteId, matchingMaterials: matchesCount },
+      '[Suppliers] Quote request details retrieved'
+    );
 
     return {
       success: true,
@@ -514,14 +628,25 @@ export class SuppliersService {
    * Get supplier profile
    */
   async getSupplierProfile(userId: string) {
+    this.logger.info({ userId }, '[Suppliers] Fetching supplier profile');
+
     const supplier = await this.supplierRepository.findOne({
       where: { userId },
       relations: ['user'],
     });
 
     if (!supplier) {
+      this.logger.info(
+        { userId },
+        '[Suppliers] Profile not found, creating new one'
+      );
       return this.getOrCreateSupplier(userId);
     }
+
+    this.logger.info(
+      { userId, supplierName: supplier.name },
+      '[Suppliers] Supplier profile retrieved'
+    );
 
     return {
       success: true,
@@ -533,8 +658,14 @@ export class SuppliersService {
    * Update supplier profile
    */
   async updateSupplierProfile(userId: string, updateData: any) {
+    this.logger.info(
+      { userId, updatedFields: Object.keys(updateData) },
+      '[Suppliers] Updating supplier profile'
+    );
+
     const supplier = await this.supplierRepository.findOne({ where: { userId } });
     if (!supplier) {
+      this.logger.warn({ userId }, '[Suppliers] Supplier not found');
       throw new NotFoundException('Supplier not found');
     }
 
@@ -554,6 +685,11 @@ export class SuppliersService {
       relations: ['user'],
     });
 
+    this.logger.info(
+      { userId, supplierName: updatedSupplier?.name },
+      '[Suppliers] Supplier profile updated'
+    );
+
     return {
       success: true,
       message: 'Profile updated successfully',
@@ -565,11 +701,21 @@ export class SuppliersService {
    * Get quotes submitted by the supplier
    */
   async getSupplierSubmittedQuotes(supplierId: string) {
+    this.logger.info(
+      { supplierId },
+      '[Suppliers] Fetching submitted quotes'
+    );
+
     const supplierQuotes = await this.supplierQuoteRepository.find({
       where: { supplierId },
       relations: ['quote'],
       order: { createdAt: 'DESC' },
     });
+
+    this.logger.info(
+      { supplierId, quotesCount: supplierQuotes.length },
+      '[Suppliers] Submitted quotes retrieved'
+    );
 
     return {
       success: true,

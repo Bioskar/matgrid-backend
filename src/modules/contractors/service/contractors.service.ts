@@ -39,6 +39,11 @@ export class ContractorsService {
   ) {}
 
   async getOrCreateContractor(userId: string): Promise<Contractor> {
+    this.logger.info(
+      { userId },
+      '[Contractors] Getting or creating contractor profile'
+    );
+
     let contractor = await this.contractorRepository.findOne({
       where: { userId },
       relations: ['user'],
@@ -50,6 +55,7 @@ export class ContractorsService {
       });
 
       if (!user) {
+        this.logger.warn({ userId }, '[Contractors] User not found or not a contractor');
         throw new NotFoundException('User not found or not a contractor');
       }
 
@@ -62,16 +68,28 @@ export class ContractorsService {
 
       contractor = await this.contractorRepository.save(contractor);
       contractor.user = user;
+
+      this.logger.info(
+        { userId, fullName: contractor.fullName },
+        '[Contractors] Contractor profile created'
+      );
     }
 
     return contractor;
   }
 
   async getContractorProfile(userId: string): Promise<any> {
+    this.logger.info({ userId }, '[Contractors] Fetching contractor profile');
+
     const contractor = await this.getOrCreateContractor(userId);
     
     // Get KYC verification status
     const kycStatus = await this.kycService.getVerificationStatus(userId);
+
+    this.logger.info(
+      { userId, isActive: contractor.isActive, kycStatus: kycStatus.overallStatus },
+      '[Contractors] Contractor profile retrieved'
+    );
     
     return {
       id: contractor.userId,
@@ -101,6 +119,11 @@ export class ContractorsService {
     userId: string,
     updateDto: UpdateProfileDto,
   ): Promise<any> {
+    this.logger.info(
+      { userId, updatedFields: Object.keys(updateDto) },
+      '[Contractors] Updating contractor profile'
+    );
+
     const contractor = await this.getOrCreateContractor(userId);
 
     // Update contractor-specific fields
@@ -117,46 +140,76 @@ export class ContractorsService {
       await this.userRepository.save(contractor.user);
     }
 
+    this.logger.info(
+      { userId, fullName: contractor.fullName },
+      '[Contractors] Contractor profile updated'
+    );
+
     return this.getContractorProfile(userId);
   }
 
   async getContractorMaterials(userId: string): Promise<Material[]> {
+    this.logger.info({ userId }, '[Contractors] Fetching contractor materials');
+
     const quotes = await this.quoteRepository.find({
       where: { userId },
       select: ['id'],
     });
 
     if (quotes.length === 0) {
+      this.logger.info({ userId }, '[Contractors] No quotes found, returning empty materials');
       return [];
     }
 
     const quoteIds = quotes.map(q => q.id);
     
-    return await this.materialRepository
+    const materials = await this.materialRepository
       .createQueryBuilder('material')
       .where('material.quoteId IN (:...quoteIds)', { quoteIds })
       .orderBy('material.createdAt', 'DESC')
       .getMany();
+
+    this.logger.info(
+      { userId, materialsCount: materials.length },
+      '[Contractors] Materials retrieved'
+    );
+
+    return materials;
   }
 
   async getContractorQuotes(userId: string): Promise<Quote[]> {
-    return await this.quoteRepository.find({
+    this.logger.info({ userId }, '[Contractors] Fetching contractor quotes');
+
+    const quotes = await this.quoteRepository.find({
       where: { userId },
       relations: ['materials'],
       order: { createdAt: 'DESC' },
     });
+
+    this.logger.info(
+      { userId, quotesCount: quotes.length },
+      '[Contractors] Quotes retrieved'
+    );
+
+    return quotes;
   }
 
   async getQuoteWithSupplierQuotes(
     userId: string,
     quoteId: string,
   ): Promise<Quote> {
+    this.logger.info(
+      { userId, quoteId },
+      '[Contractors] Fetching quote with supplier quotes'
+    );
+
     const quote = await this.quoteRepository.findOne({
       where: { id: quoteId, userId },
       relations: ['materials'],
     });
 
     if (!quote) {
+      this.logger.warn({ userId, quoteId }, '[Contractors] Quote not found');
       throw new NotFoundException('Quote not found');
     }
 
@@ -166,18 +219,34 @@ export class ContractorsService {
       order: { createdAt: 'DESC' },
     });
 
+    this.logger.info(
+      { userId, quoteId, supplierQuotesCount: supplierQuotes.length },
+      '[Contractors] Quote with supplier quotes retrieved'
+    );
+
     return { ...quote, supplierQuotes } as any;
   }
 
   async getContractorOrders(userId: string): Promise<Order[]> {
-    return await this.orderRepository.find({
+    this.logger.info({ userId }, '[Contractors] Fetching contractor orders');
+
+    const orders = await this.orderRepository.find({
       where: { userId },
       relations: ['items'],
       order: { createdAt: 'DESC' },
     });
+
+    this.logger.info(
+      { userId, ordersCount: orders.length },
+      '[Contractors] Orders retrieved'
+    );
+
+    return orders;
   }
 
   async getContractorDashboardStats(userId: string): Promise<any> {
+    this.logger.info({ userId }, '[Contractors] Fetching dashboard stats');
+
     const quotes = await this.quoteRepository.find({
       where: { userId },
       select: ['id'],
@@ -209,13 +278,20 @@ export class ContractorsService {
       .andWhere('order.paymentStatus = :status', { status: 'paid' })
       .getRawOne();
 
-    return {
+    const stats = {
       materialsCount,
       quotesCount,
       ordersCount,
       pendingOrdersCount: pendingOrders,
       totalSpent: parseFloat(totalSpent?.total || '0'),
     };
+
+    this.logger.info(
+      { userId, ...stats },
+      '[Contractors] Dashboard stats retrieved'
+    );
+
+    return stats;
   }
 
   async getActiveQuotes(userId: string): Promise<Quote[]> {

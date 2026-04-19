@@ -84,7 +84,7 @@ export class KycService {
       };
     } catch (error) {
       this.logger.error(
-        { userId, error: error.message },
+        { userId, error: error instanceof Error ? error.message : 'Unknown error' },
         'Failed to upload KYC document',
       );
       throw error;
@@ -95,10 +95,17 @@ export class KycService {
    * Get all KYC documents for user
    */
   async getUserDocuments(userId: string): Promise<any> {
+    this.logger.info({ userId }, '[KYC] Fetching user documents');
+
     const documents = await this.kycDocumentRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
     });
+
+    this.logger.info(
+      { userId, documentsCount: documents.length },
+      '[KYC] User documents retrieved'
+    );
 
     return {
       success: true,
@@ -119,6 +126,11 @@ export class KycService {
    * Get KYC verification status summary
    */
   async getVerificationStatus(userId: string): Promise<any> {
+    this.logger.info(
+      { userId },
+      '[KYC] Fetching verification status summary'
+    );
+
     const documents = await this.kycDocumentRepository.find({
       where: { userId },
     });
@@ -166,6 +178,18 @@ export class KycService {
     } else {
       overallStatus = 'rejected';
     }
+
+    this.logger.info(
+      {
+        userId,
+        overallStatus,
+        totalDocuments,
+        verifiedDocuments,
+        pendingDocuments,
+        rejectedDocuments,
+      },
+      '[KYC] Verification status retrieved'
+    );
 
     return {
       success: true,
@@ -273,6 +297,8 @@ export class KycService {
    * Admin: Get all pending documents
    */
   async getPendingDocuments(): Promise<any> {
+    this.logger.info({}, '[KYC] Fetching all pending documents');
+
     const documents = await this.kycDocumentRepository.find({
       where: [
         { verificationStatus: VerificationStatus.PENDING },
@@ -281,6 +307,11 @@ export class KycService {
       relations: ['user'],
       order: { createdAt: 'ASC' },
     });
+
+    this.logger.info(
+      { pendingCount: documents.length },
+      '[KYC] Pending documents retrieved'
+    );
 
     return {
       success: true,

@@ -64,12 +64,19 @@ export class SupportService {
    * Get FAQ categories
    */
   async getCategories() {
+    this.logger.info({}, '[Support] Fetching FAQ categories');
+
     const categories = await this.faqRepository
       .createQueryBuilder('faq')
       .select('DISTINCT faq.category', 'category')
       .where('faq.isActive = :isActive', { isActive: true })
       .andWhere('faq.category IS NOT NULL')
       .getRawMany();
+
+    this.logger.info(
+      { categoriesCount: categories.length },
+      '[Support] FAQ categories retrieved'
+    );
 
     return {
       success: true,
@@ -81,6 +88,8 @@ export class SupportService {
    * Get support contact information
    */
   async getContactInfo() {
+    this.logger.info({}, '[Support] Fetching contact information');
+
     return {
       success: true,
       contact: {
