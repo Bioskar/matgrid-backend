@@ -6,6 +6,7 @@ export enum DocumentType {
   DRIVERS_LICENSE = 'drivers_license',
   VOTERS_CARD = 'voters_card',
   CAC_CERTIFICATE = 'cac_certificate',
+  TIN_CERTIFICATE = 'tin_certificate',
 }
 
 export enum VerificationStatus {

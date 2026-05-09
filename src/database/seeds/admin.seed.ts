@@ -34,8 +34,12 @@ const dataSource = new DataSource({
 async function seed() {
   await dataSource.initialize();
 
-  const ADMIN_EMAIL = process.env.ADMIN_SEED_EMAIL || 'admin@matgrid.com';
-  const ADMIN_PASSWORD = process.env.ADMIN_SEED_PASSWORD || 'Admin@matgrid1';
+  const ADMIN_EMAIL = process.env.ADMIN_SEED_EMAIL;
+  const ADMIN_PASSWORD = process.env.ADMIN_SEED_PASSWORD;
+
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    throw new Error('ADMIN_SEED_EMAIL or ADMIN_SEED_PASSWORD is not defined');
+  }
 
   const existing = await dataSource.query(
     `SELECT id FROM users WHERE email = $1 LIMIT 1`,

@@ -126,7 +126,7 @@ export class KycController {
         },
         documentType: {
           type: 'string',
-          enum: ['nin_slip', 'drivers_license', 'voters_card', 'cac_certificate'],
+          enum: ['nin_slip', 'drivers_license', 'voters_card', 'cac_certificate', 'tin_certificate'],
           description: 'Type of document',
         },
         documentNumber: {

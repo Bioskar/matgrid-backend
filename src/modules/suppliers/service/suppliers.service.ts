@@ -361,7 +361,7 @@ export class SuppliersService {
     const quotes = await this.quoteRepository
       .createQueryBuilder('quote')
       .leftJoinAndSelect('quote.materials', 'material')
-      .where('quote.status = :status', { status: 'open' })
+      .where('quote.status = :status', { status: 'in-review' })
       .andWhere('material.category IN (:...categories)', { categories: supplier.materialCategories })
       .orderBy('quote.createdAt', 'DESC')
       .limit(50)
@@ -488,7 +488,7 @@ export class SuppliersService {
     }
 
     const quote = await this.quoteRepository.findOne({
-      where: { id: quoteId, status: 'open' },
+      where: { id: quoteId, status: 'in-review' },
       relations: ['materials'],
     });
 
@@ -533,10 +533,8 @@ export class SuppliersService {
    * Update supplier profile
    */
   async updateSupplierProfile(userId: string, updateData: any) {
-    const supplier = await this.supplierRepository.findOne({ where: { userId } });
-    if (!supplier) {
-      throw new NotFoundException('Supplier not found');
-    }
+    // Ensure supplier exists (especially for new signups)
+    await this.getOrCreateSupplier(userId);
 
     if (updateData.fullName || updateData.company || updateData.businessAddress) {
       await this.userRepository.update(userId, {
