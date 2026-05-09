@@ -839,6 +839,8 @@ export class AdminService {
       .where('o.userId = :id', { id })
       .getRawOne();
 
+    const kycDocuments = await this.kycRepo.find({ where: { userId: id } });
+    
     return {
       id: contractor.userId,
       name: contractor.fullName,
@@ -849,6 +851,7 @@ export class AdminService {
       ordersCount: Number(orderStats?.orderCount || 0),
       contractValue: Number(orderStats?.contractValue || 0),
       createdAt: contractor.createdAt,
+      kycDocuments,
     };
   }
 
@@ -866,6 +869,8 @@ export class AdminService {
       .where('i.supplierId = :id', { id })
       .getRawOne();
 
+    const kycDocuments = await this.kycRepo.find({ where: { userId: id } });
+
     return {
       id: supplier.userId,
       name: supplier.name,
@@ -876,6 +881,7 @@ export class AdminService {
       ordersCount: Number(orderStats?.orderCount || 0),
       createdAt: supplier.createdAt,
       description: supplier.description || null,
+      kycDocuments,
     };
   }
 

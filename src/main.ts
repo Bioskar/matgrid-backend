@@ -9,6 +9,8 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
 import { networkInterfaces } from 'node:os';
+import { join } from 'path';
+import * as express from 'express';
 
 dotenv.config();
 
@@ -128,6 +130,9 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Serve static files from uploads directory
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
   if (process.env.SWAGGER_ENABLED !== 'false') {
     const config = new DocumentBuilder()
