@@ -496,17 +496,18 @@ export class SuppliersService {
       throw new NotFoundException('Quote request not found or no longer available');
     }
 
-    const matchesCount = quote.materials?.filter((m) =>
-      supplier.materialCategories.includes(m.category),
-    ).length;
+    const relevantMaterials = quote.materials?.filter((m) =>
+      supplier.materialCategories.includes(m.category)
+    ) || [];
 
-    if (matchesCount === 0) {
+    if (relevantMaterials.length === 0) {
       throw new BadRequestException('This quote does not match your product categories');
     }
 
     return {
       success: true,
-      quote,
+      ...quote,
+      materials: relevantMaterials,
     };
   }
 
