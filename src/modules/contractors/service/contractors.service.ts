@@ -289,7 +289,7 @@ export class ContractorsService {
       userId,
       projectId,
       title: `${project.projectName} - Materials Request`,
-      status: 'draft',
+      status: 'in-review',
       currency: 'NGN',
     });
 
@@ -302,6 +302,7 @@ export class ContractorsService {
         name: item.name,
         quantity: item.quantity,
         unit: item.unit,
+        category: item.category,
         description: `Parsed from BOQ: ${item.originalText}`,
         sourceMethod: 'paste',
         currency: 'NGN',
@@ -415,7 +416,7 @@ export class ContractorsService {
       userId,
       projectId: savedProject.id,
       title: `${projectName} - Materials Request`,
-      status: 'draft',
+      status: 'in-review',
       currency: 'NGN',
     });
 
@@ -428,6 +429,7 @@ export class ContractorsService {
         name: item.name,
         quantity: item.quantity,
         unit: item.unit,
+        category: this.boqParserService.identifyMaterial(item.name)?.category || 'others',
         description: item.description,
         brand: item.brand,
         sourceMethod: 'manual',

@@ -40,6 +40,12 @@ export class ParsedMaterialItem {
     example: 'bags',
   })
   unit: string;
+  
+  @ApiProperty({
+    description: 'Material category for supplier matching',
+    example: 'cement_and_aggregates',
+  })
+  category: string;
 
   @ApiProperty({
     description: 'Original text line',
@@ -108,13 +114,13 @@ export class CreateProjectWithBOQDto {
 }
 
 export class AddParsedMaterialsDto {
-  @ApiProperty({
-    description: 'Project ID',
+  @ApiPropertyOptional({
+    description: 'Project ID (optional if provided in URL)',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  projectId: string;
+  projectId?: string;
 
   @ApiProperty({
     description: 'Parsed materials to add',

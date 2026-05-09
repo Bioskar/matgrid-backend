@@ -139,13 +139,13 @@ export class AdminService {
   // ────────────────────────────────────────────────────────────────────────────
 
   async getRfqStats() {
-    const [total, awaitingSelection, awarded, expired] = await Promise.all([
+    const [total, active, awarded, expired] = await Promise.all([
       this.quoteRepo.count(),
       this.quoteRepo.count({ where: { status: 'in-review' } }),
       this.quoteRepo.count({ where: { status: 'finalized' } }),
       this.quoteRepo.count({ where: { status: 'archived' } }),
     ]);
-    return { total, awaitingSelection, awarded, expiredOrCancelled: expired };
+    return { total, awaitingSelection: active, awarded, expiredOrCancelled: expired };
   }
 
   async getRfqs(query: ListQueryDto) {
@@ -920,7 +920,7 @@ export class AdminService {
   private mapRfqStatus(status: string): string {
     const map: Record<string, string> = {
       draft: 'active',
-      'in-review': 'quotes received',
+      'in-review': 'active', // Show as active in dashboard
       finalized: 'awarded',
       archived: 'expired',
     };
@@ -929,7 +929,7 @@ export class AdminService {
 
   private mapRfqStatusToBackend(frontendStatus: string): string | null {
     const map: Record<string, string> = {
-      active: 'draft',
+      active: 'in-review', // Map active filter to in-review status
       quoted: 'in-review',
       awarded: 'finalized',
       expired: 'archived',

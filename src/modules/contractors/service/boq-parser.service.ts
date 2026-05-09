@@ -4,6 +4,7 @@ import { ParseBOQDto, ParsedMaterialItem, ParseBOQResponseDto } from '../dto/boq
 
 interface MaterialPattern {
   name: string;
+  category: string;
   aliases: string[];
   commonUnits: string[];
 }
@@ -15,61 +16,73 @@ export class BOQParserService {
   private materialDatabase: MaterialPattern[] = [
     {
       name: 'Cement',
+      category: 'Cement',
       aliases: ['cement', 'dangote', 'lafarge', 'unicem', 'bua cement'],
       commonUnits: ['bags', 'bag', 'tonnes', 'tons'],
     },
     {
       name: 'Sharp Sand',
+      category: 'Sand/Granite',
       aliases: ['sharp sand', 'river sand', 'fine sand', 'sand'],
       commonUnits: ['tonnes', 'tons', 'ton', 'tonne', 'cubic meters', 'm3', 'trips', 'loads'],
     },
     {
       name: 'Granite',
+      category: 'Sand/Granite',
       aliases: ['granite', 'stone', 'aggregate', 'gravel'],
       commonUnits: ['tonnes', 'tons', 'ton', 'tonne', 'cubic meters', 'm3', 'trips', 'loads'],
     },
     {
       name: 'Reinforcement Steel',
-      aliases: ['iron rod', 'rebar', 'reinforcement', 'steel rod', 'iron', 'y10', 'y12', 'y16', '10mm', '12mm', '16mm', '20mm', '25mm'],
+      category: 'Steel/Rods',
+      aliases: ['steel', 'iron', 'rod', 'iron rod', 'rebar', 'reinforcement', 'steel rod', 'y10', 'y12', 'y16', '10mm', '12mm', '16mm', '20mm', '25mm'],
       commonUnits: ['lengths', 'length', 'pieces', 'pcs', 'tonnes', 'tons'],
     },
     {
       name: 'Blocks',
+      category: 'Masonry',
       aliases: ['block', 'blocks', 'concrete block', 'sandcrete', '6 inch', '9 inch'],
       commonUnits: ['pieces', 'pcs', 'units'],
     },
     {
       name: 'PVC Pipes',
+      category: 'Plumbing',
       aliases: ['pvc pipe', 'pvc', 'water pipe', 'pipe', 'plumbing pipe'],
       commonUnits: ['lengths', 'rolls', 'pieces', 'meters'],
     },
     {
       name: 'Roofing Sheets',
+      category: 'Roofing',
       aliases: ['roofing sheet', 'zinc', 'aluminum roofing', 'longspan', 'stone coated'],
       commonUnits: ['sheets', 'pieces', 'bundles'],
     },
     {
       name: 'Binding Wire',
+      category: 'Steel/Rods',
       aliases: ['binding wire', 'wire', 'tie wire'],
       commonUnits: ['rolls', 'kg', 'kilograms'],
     },
     {
       name: 'Nails',
+      category: 'Electrical',
       aliases: ['nail', 'nails', 'wire nail'],
       commonUnits: ['kg', 'kilograms', 'cartons', 'boxes'],
     },
     {
       name: 'Paint',
+      category: 'Finishing',
       aliases: ['paint', 'emulsion', 'gloss', 'primer', 'undercoat'],
       commonUnits: ['liters', 'litres', 'gallons', 'buckets'],
     },
     {
       name: 'Timber',
+      category: 'Roofing',
       aliases: ['timber', 'wood', 'plank', '2x4', '2x6', '4x4'],
       commonUnits: ['lengths', 'pieces', 'cubic meters'],
     },
     {
       name: 'Plywood',
+      category: 'Roofing',
       aliases: ['plywood', 'marine ply', 'blockboard'],
       commonUnits: ['sheets', 'pieces'],
     },
@@ -78,7 +91,17 @@ export class BOQParserService {
   async parseBOQ(dto: ParseBOQDto): Promise<ParseBOQResponseDto> {
     this.logger.info({ projectId: dto.projectId }, '[BOQParser] Starting BOQ parsing');
 
-    const lines = dto.boqText
+    const unitList = 'bags?|tonnes?|tons?|lengths?|pieces?|pcs|units?|rolls?|sheets?|kg|kilograms?|meters?|m3|cubic\\s*meters?|liters?|litres?|gallons?|buckets?|cartons?|boxes?|trips?|loads?';
+    
+    let normalizedText = dto.boqText.replace(/([,;])\s*/g, '\n');
+    
+    // Split multi-item lines: [unit] followed by text and then another [number]
+    if (!normalizedText.includes('\n')) {
+      const boundaryRegex = new RegExp(`(\\d+)\\s*(${unitList})\\s+(.+?)(?=\\d+\\s*(?:${unitList})|$)`, 'gi');
+      normalizedText = normalizedText.replace(boundaryRegex, '$1 $2\n$3');
+    }
+
+    const lines = normalizedText
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0);
@@ -128,11 +151,15 @@ export class BOQParserService {
       
       // Pattern: "Cement (500 Bags)"
       /(.+?)\s*\((\d+(?:,\d{3})*(?:\.\d+)?)\s*(bags?|tonnes?|tons?|lengths?|pieces?|pcs|units?|rolls?|sheets?|kg|kilograms?|meters?|m3|cubic\s*meters?|liters?|litres?|gallons?|buckets?|cartons?|boxes?|trips?|loads?)\)/i,
+
+      // Pattern: "Cement 500 Bags" (No separator)
+      /(.+?)\s+(\d+(?:,\d{3})*(?:\.\d+)?)\s*(bags?|tonnes?|tons?|lengths?|pieces?|pcs|units?|rolls?|sheets?|kg|kilograms?|meters?|m3|cubic\s*meters?|liters?|litres?|gallons?|buckets?|cartons?|boxes?|trips?|loads?)\b/i,
     ];
 
     let quantity: number = 0;
     let unit: string = '';
     let materialName: string = '';
+    let category: string = '';
     let confidence: number = 0.5;
 
     for (const pattern of quantityPatterns) {
@@ -159,6 +186,7 @@ export class BOQParserService {
       const identifiedMaterial = this.identifyMaterial(cleanLine);
       if (identifiedMaterial) {
         materialName = identifiedMaterial.name;
+        category = identifiedMaterial.category;
         confidence = 0.6;
         // Try to extract any number as quantity
         const numMatch = cleanLine.match(/(\d+(?:,\d{3})*(?:\.\d+)?)/);
@@ -173,9 +201,12 @@ export class BOQParserService {
       return null;
     }
 
-    // Identify material type for better naming
+    // Identify material type for better naming and categorization
     const identifiedMaterial = this.identifyMaterial(materialName);
     if (identifiedMaterial) {
+      // Set the correct category
+      category = identifiedMaterial.category;
+      
       // Keep original name but with better formatting
       materialName = this.formatMaterialName(materialName, identifiedMaterial);
       confidence = Math.min(confidence + 0.1, 1.0);
@@ -188,12 +219,13 @@ export class BOQParserService {
       name: materialName,
       quantity: quantity || 1,
       unit: unit || 'items',
+      category: category || 'others',
       originalText: line,
       confidence,
     };
   }
 
-  private identifyMaterial(text: string): MaterialPattern | null {
+  public identifyMaterial(text: string): MaterialPattern | null {
     const lowerText = text.toLowerCase();
     
     for (const material of this.materialDatabase) {

@@ -112,6 +112,7 @@ export class FileBOQParserService {
       name,
       quantity,
       unit: unit || 'items',
+      category: this.boqParserService.identifyMaterial(name)?.category || 'others',
       originalText: `Row ${rowIndex}: ${row.join(' | ')}`,
       confidence,
     };
