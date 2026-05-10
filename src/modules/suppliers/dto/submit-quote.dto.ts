@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsPositive, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsPositive, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SubmitQuoteItemDto {
@@ -46,12 +46,13 @@ export class SubmitSupplierQuoteDto {
   quoteId: string;
 
   @ApiProperty({
-    description: 'Supplier ID',
-    example: '507f1f77bcf86cd799439011'
+    description: 'Supplier ID (optional, extracted from token if missing)',
+    example: '507f1f77bcf86cd799439011',
+    required: false
   })
   @IsString()
-  @IsNotEmpty()
-  supplierId: string;
+  @IsOptional()
+  supplierId?: string;
 
   @ApiProperty({
     description: 'Quote items with pricing',
