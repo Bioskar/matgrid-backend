@@ -65,6 +65,11 @@ export class PaymentsService {
    * Get payment statistics for user
    */
   async getPaymentStats(userId: string) {
+    this.logger.info(
+      { userId },
+      '[Payments] Fetching payment statistics'
+    );
+
     const [totalSent, totalReceived, allPayments] = await Promise.all([
       this.paymentRepository
         .createQueryBuilder('payment')
@@ -83,10 +88,18 @@ export class PaymentsService {
       this.paymentRepository.count({ where: { userId } }),
     ]);
 
+    const sent = parseFloat(totalSent?.total || '0');
+    const received = parseFloat(totalReceived?.total || '0');
+
+    this.logger.info(
+      { userId, totalSent: sent, totalReceived: received, totalPayments: allPayments },
+      '[Payments] Payment statistics retrieved'
+    );
+
     return {
       success: true,
-      totalSent: parseFloat(totalSent?.total || '0'),
-      totalReceived: parseFloat(totalReceived?.total || '0'),
+      totalSent: sent,
+      totalReceived: received,
       totalPayments: allPayments,
     };
   }

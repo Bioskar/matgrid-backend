@@ -25,6 +25,11 @@ export class SuppliersService {
   ) {}
 
   async getOrCreateSupplier(userId: string): Promise<Supplier> {
+    this.logger.info(
+      { userId },
+      '[Suppliers] Getting or creating supplier profile'
+    );
+
     let supplier = await this.supplierRepository.findOne({
       where: { userId },
       relations: ['user'],
@@ -36,6 +41,7 @@ export class SuppliersService {
       });
 
       if (!user) {
+        this.logger.warn({ userId }, '[Suppliers] User not found or not a supplier');
         throw new NotFoundException('User not found or not a supplier');
       }
 
@@ -49,6 +55,11 @@ export class SuppliersService {
 
       supplier = await this.supplierRepository.save(supplier);
       supplier.user = user;
+
+      this.logger.info(
+        { userId, supplierName: supplier.name },
+        '[Suppliers] Supplier profile created'
+      );
     }
 
     return supplier;
@@ -59,14 +70,13 @@ export class SuppliersService {
    * Matches suppliers by material categories
    */
   async searchSuppliers(quoteId: string, filters: any = {}) {
-    // Get materials for the quote
     const materials = await this.materialRepository.find({ where: { quoteId } });
 
     if (materials.length === 0) {
+      this.logger.warn({ quoteId }, '[Suppliers] No materials found in quote');
       throw new BadRequestException('No materials found in quote');
     }
 
-    // Build query based on material categories
     const categories = materials
       .map((m) => m.category)
       .filter((c) => c);
@@ -88,6 +98,11 @@ export class SuppliersService {
       .limit(20)
       .getMany();
 
+    this.logger.info(
+      { quoteId, suppliersFound: suppliers.length, categories },
+      '[Suppliers] Supplier search completed'
+    );
+
     return {
       success: true,
       suppliers,
@@ -99,6 +114,11 @@ export class SuppliersService {
    * Get all active suppliers with optional filters
    */
   async getAllSuppliers(filters: any = {}) {
+    this.logger.info(
+      { filters },
+      '[Suppliers] Fetching all suppliers'
+    );
+
     const queryBuilder = this.supplierRepository
       .createQueryBuilder('supplier')
       .where('supplier.isActive = :isActive', { isActive: true });
@@ -117,6 +137,11 @@ export class SuppliersService {
       .orderBy('supplier.rating', 'DESC')
       .getMany();
 
+    this.logger.info(
+      { suppliersCount: suppliers.length },
+      '[Suppliers] Suppliers retrieved'
+    );
+
     return {
       success: true,
       suppliers,
@@ -127,11 +152,19 @@ export class SuppliersService {
    * Get supplier details by ID
    */
   async getSupplierDetails(supplierId: string) {
+    this.logger.info({ supplierId }, '[Suppliers] Fetching supplier details');
+
     const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
 
     if (!supplier) {
+      this.logger.warn({ supplierId }, '[Suppliers] Supplier not found');
       throw new BadRequestException('Supplier not found');
     }
+
+    this.logger.info(
+      { supplierId, supplierName: supplier.name },
+      '[Suppliers] Supplier details retrieved'
+    );
 
     return {
       success: true,
@@ -144,14 +177,22 @@ export class SuppliersService {
    * Calculates total cost from materials data
    */
   async createSupplierQuote(quoteId: string, supplierId: string, materialsData: any[]) {
+    this.logger.info(
+      { quoteId, supplierId, materialsCount: materialsData.length },
+      '[Suppliers] Creating supplier quote'
+    );
+
     const quote = await this.quoteRepository.findOne({ where: { id: quoteId } });
     const supplier = await this.supplierRepository.findOne({ where: { userId: supplierId } });
 
     if (!quote || !supplier) {
+      this.logger.warn(
+        { quoteId, supplierId, quoteFound: !!quote, supplierFound: !!supplier },
+        '[Suppliers] Quote or Supplier not found'
+      );
       throw new BadRequestException('Quote or Supplier not found');
     }
 
-    // Calculate total cost from materials
     const totalCost = materialsData.reduce(
       (sum, m) => sum + (m.totalPrice || 0),
       0,
@@ -167,9 +208,13 @@ export class SuppliersService {
 
     await this.supplierQuoteRepository.save(supplierQuote);
 
-    // Update quote suppliers count
     quote.suppliersCount = await this.supplierQuoteRepository.count({ where: { quoteId } });
     await this.quoteRepository.save(quote);
+
+    this.logger.info(
+      { quoteId, supplierId, supplierQuoteId: supplierQuote.id, totalCost },
+      '[Suppliers] Supplier quote created'
+    );
 
     return {
       success: true,
@@ -179,14 +224,20 @@ export class SuppliersService {
 
   /**
    * Get all supplier quotes for a quote
-   * Sorted by total cost (lowest first)
    */
   async getSupplierQuotes(quoteId: string) {
+    this.logger.info({ quoteId }, '[Suppliers] Fetching supplier quotes');
+
     const supplierQuotes = await this.supplierQuoteRepository.find({
       where: { quoteId },
       relations: ['supplier'],
       order: { totalCost: 'ASC' },
     });
+
+    this.logger.info(
+      { quoteId, quotesCount: supplierQuotes.length },
+      '[Suppliers] Supplier quotes retrieved'
+    );
 
     return {
       success: true,
@@ -196,9 +247,13 @@ export class SuppliersService {
 
   /**
    * Get supplier quotes grouped by material category for comparison
-   * Used in "Choose Your Suppliers" screen
    */
   async getSupplierQuotesGrouped(quoteId: string) {
+    this.logger.info(
+      { quoteId },
+      '[Suppliers] Fetching grouped supplier quotes for comparison'
+    );
+
     const supplierQuotes = await this.supplierQuoteRepository.find({
       where: { quoteId },
       relations: ['supplier'],
@@ -209,6 +264,10 @@ export class SuppliersService {
     });
 
     if (supplierQuotes.length === 0) {
+      this.logger.warn(
+        { quoteId },
+        '[Suppliers] No supplier quotes received yet'
+      );
       return {
         success: true,
         message: 'No supplier quotes received yet',
@@ -217,7 +276,6 @@ export class SuppliersService {
       };
     }
 
-    // Group materials by category
     const categorizedMaterials = materials.reduce((acc, material) => {
       const category = material.category || 'Other';
       if (!acc[category]) {
@@ -227,14 +285,11 @@ export class SuppliersService {
       return acc;
     }, {} as Record<string, any[]>);
 
-    // For each category, find supplier quotes for those materials
     const groupedQuotes = Object.entries(categorizedMaterials).map(([category, categoryMaterials]) => {
       const materialIds = categoryMaterials.map(m => m.id);
       
-      // Find suppliers who quoted for materials in this category
       const categorySupplierQuotes = supplierQuotes
         .map(sq => {
-          // sq.materials is a JSON array of SupplierQuoteMaterial
           const relevantItems = sq.materials.filter(item => 
             materialIds.includes(item.materialId)
           );
@@ -251,7 +306,7 @@ export class SuppliersService {
             supplierName: sq.supplier.name,
             location: sq.supplier.shopAddress || 'Not specified',
             rating: sq.supplier.rating || 0,
-            deliveryDays: 2, // Can be calculated from quote delivery estimate
+            deliveryDays: 2,
             stockStatus: 'Available',
             subtotal,
             items: relevantItems.map(item => {
@@ -268,7 +323,7 @@ export class SuppliersService {
           };
         })
         .filter(Boolean)
-        .sort((a, b) => a!.subtotal - b!.subtotal); // Sort by price (lowest first)
+        .sort((a, b) => a!.subtotal - b!.subtotal);
       
       return {
         category,
@@ -284,9 +339,13 @@ export class SuppliersService {
       };
     });
 
-    // Calculate total with best prices from each category
     const totalEstimate = groupedQuotes.reduce((sum, group) => 
       sum + (group.lowestPrice || 0), 0
+    );
+
+    this.logger.info(
+      { quoteId, categoriesCount: groupedQuotes.length, totalEstimate, suppliersCount: supplierQuotes.length },
+      '[Suppliers] Grouped supplier quotes retrieved'
     );
 
     return {
@@ -303,16 +362,28 @@ export class SuppliersService {
    * Update supplier quote status
    */
   async updateSupplierQuoteStatus(supplierQuoteId: string, status: string) {
+    this.logger.info(
+      { supplierQuoteId, newStatus: status },
+      '[Suppliers] Updating supplier quote status'
+    );
+
     const supplierQuote = await this.supplierQuoteRepository.findOne({
       where: { id: supplierQuoteId }
     });
 
     if (!supplierQuote) {
+      this.logger.warn({ supplierQuoteId }, '[Suppliers] Supplier quote not found');
       throw new BadRequestException('Supplier quote not found');
     }
 
+    const oldStatus = supplierQuote.status;
     supplierQuote.status = status;
     await this.supplierQuoteRepository.save(supplierQuote);
+
+    this.logger.info(
+      { supplierQuoteId, oldStatus, newStatus: status },
+      '[Suppliers] Supplier quote status updated'
+    );
 
     return {
       success: true,
@@ -322,9 +393,13 @@ export class SuppliersService {
 
   /**
    * Get the best (lowest cost) supplier for a quote
-   * Returns all suppliers sorted by cost
    */
   async getBestSupplierForQuote(quoteId: string) {
+    this.logger.info(
+      { quoteId },
+      '[Suppliers] Finding best supplier for quote'
+    );
+
     const quotes = await this.supplierQuoteRepository.find({
       where: { quoteId },
       relations: ['supplier'],
@@ -332,8 +407,14 @@ export class SuppliersService {
     });
 
     if (quotes.length === 0) {
+      this.logger.warn({ quoteId }, '[Suppliers] No supplier quotes found');
       throw new BadRequestException('No supplier quotes found');
     }
+
+    this.logger.info(
+      { quoteId, bestSupplier: quotes[0].supplierId, lowestCost: quotes[0].totalCost },
+      '[Suppliers] Best supplier identified'
+    );
 
     return {
       success: true,
@@ -357,7 +438,6 @@ export class SuppliersService {
       };
     }
 
-    // Get quotes with materials matching supplier categories
     const quotes = await this.quoteRepository
       .createQueryBuilder('quote')
       .leftJoinAndSelect('quote.materials', 'material')
@@ -367,7 +447,6 @@ export class SuppliersService {
       .limit(50)
       .getMany();
 
-    // Calculate how many materials match for each quote
     const requestsWithMatches = quotes.map(quote => {
       const relevantMaterials = quote.materials?.filter(m => 
         supplier.materialCategories.includes(m.category)
@@ -392,11 +471,6 @@ export class SuppliersService {
       };
     }).filter(req => req.relevantMaterials > 0);
 
-    this.logger.info(
-      { supplierId, requestsCount: requestsWithMatches.length },
-      'Fetched incoming requests for supplier'
-    );
-
     return {
       success: true,
       requests: requestsWithMatches,
@@ -418,7 +492,6 @@ export class SuppliersService {
       throw new BadRequestException('Quote not found');
     }
 
-    // Validate all material IDs exist
     const materialIds = items.map(item => item.materialId);
     const materials = await this.materialRepository.find({
       where: { id: In(materialIds), quoteId },
@@ -428,7 +501,6 @@ export class SuppliersService {
       throw new BadRequestException('Some materials not found in quote');
     }
 
-    // Calculate total quote amount
     const materialPricing = items.map(item => {
       const material = materials.find(m => m.id === item.materialId);
       const totalPrice = item.pricePerUnit * (material?.quantity || 0);
@@ -447,7 +519,6 @@ export class SuppliersService {
 
     const totalAmount = materialPricing.reduce((sum, item) => sum + item.totalPrice, 0);
 
-    // Create supplier quote
     const supplierQuote = this.supplierQuoteRepository.create({
       quoteId,
       supplierId,
@@ -462,7 +533,6 @@ export class SuppliersService {
       { supplierId, quoteId, totalAmount, itemsCount: items.length },
       'Supplier quote submitted successfully'
     );
-
     return {
       success: true,
       message: 'Quote submitted successfully',
@@ -470,7 +540,7 @@ export class SuppliersService {
         id: supplierQuote.id,
         quoteId: supplierQuote.quoteId,
         supplierId: supplierQuote.supplierId,
-        totalAmount,
+        totalAmount: totalAmount,
         materials: materialPricing,
         status: supplierQuote.status,
         createdAt: supplierQuote.createdAt,

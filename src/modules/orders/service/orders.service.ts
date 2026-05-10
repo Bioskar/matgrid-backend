@@ -132,14 +132,28 @@ export class OrdersService {
    * Get order by ID with items
    */
   async getOrderById(orderId: string, userId: string) {
+    this.logger.info(
+      { orderId, userId },
+      '[Orders] Fetching order details'
+    );
+
     const order = await this.orderRepository.findOne({
       where: { id: orderId, userId },
       relations: ['items', 'items.supplier'],
     });
 
     if (!order) {
+      this.logger.warn(
+        { orderId, userId },
+        '[Orders] Order not found'
+      );
       throw new BadRequestException('Order not found');
     }
+
+    this.logger.info(
+      { orderId, orderNumber: order.orderNumber, itemsCount: order.items?.length },
+      '[Orders] Order details retrieved'
+    );
 
     return {
       success: true,
@@ -279,11 +293,21 @@ export class OrdersService {
    * Get user orders
    */
   async getUserOrders(userId: string) {
+    this.logger.info(
+      { userId },
+      '[Orders] Fetching user orders'
+    );
+
     const orders = await this.orderRepository.find({
       where: { userId },
       relations: ['items'],
       order: { createdAt: 'DESC' },
     });
+
+    this.logger.info(
+      { userId, ordersCount: orders.length },
+      '[Orders] User orders retrieved'
+    );
 
     return {
       success: true,

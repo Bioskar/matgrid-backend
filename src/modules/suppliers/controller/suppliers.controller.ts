@@ -76,6 +76,16 @@ export class SuppliersController {
     return this.suppliersService.getIncomingRequests(supplierId);
   }
 
+  @Get('requests/:requestId')
+  @ApiOperation({ summary: 'Get specific quote request details' })
+  async getRequestDetails(
+    @CurrentUser() user: UserPayload,
+    @Param('requestId') requestId: string,
+  ) {
+    const supplierId = user.supplierId || user.userId;
+    return this.suppliersService.getIncomingRequestById(supplierId, requestId);
+  }
+
   @Post('submit-quote')
   @ApiOperation({
     summary: 'Submit pricing quote (Supplier)',
@@ -171,33 +181,28 @@ export class SuppliersController {
     );
   }
 
-  @Get()
-  async getAllSuppliers(@Query() filters: any) {
-    return this.suppliersService.getAllSuppliers(filters);
-  }
-
   @Get('profile')
   @ApiOperation({ summary: 'Get supplier profile' })
-  getProfile(@CurrentUser() user: UserPayload) {
-    const userId = user.userId;
-    return this.suppliersService.getSupplierProfile(userId);
+  async getProfile(@CurrentUser() user: UserPayload) {
+    return this.suppliersService.getSupplierProfile(user.userId);
   }
 
   @Put('profile')
   @ApiOperation({ summary: 'Update supplier profile' })
-  updateProfile(
-    @CurrentUser() user: UserPayload,
-    @Body() updateData: any,
-  ) {
-    const userId = user.userId;
-    return this.suppliersService.updateSupplierProfile(userId, updateData);
+  async updateProfile(@CurrentUser() user: UserPayload, @Body() updateData: any) {
+    return this.suppliersService.updateSupplierProfile(user.userId, updateData);
   }
 
   @Get('my-quotes')
-  @ApiOperation({ summary: 'Get quotes submitted by the supplier' })
-  getSubmittedQuotes(@CurrentUser() user: UserPayload) {
+  @ApiOperation({ summary: 'Get quotes submitted by this supplier' })
+  async getMyQuotes(@CurrentUser() user: UserPayload) {
     const supplierId = user.supplierId || user.userId;
     return this.suppliersService.getSupplierSubmittedQuotes(supplierId);
+  }
+
+  @Get()
+  async getAllSuppliers(@Query() filters: any) {
+    return this.suppliersService.getAllSuppliers(filters);
   }
 
   @Get(':supplierId')
