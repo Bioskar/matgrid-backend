@@ -7,6 +7,8 @@ import { UserSettings } from '../entities/user-settings.entity';
 import { User } from '../../auth/entities/user.entity';
 import { UpdateSettingsDto } from '../dto/update-settings.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import { NotificationsService } from '../../notifications/service/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class SettingsService {
@@ -16,6 +18,7 @@ export class SettingsService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -122,6 +125,22 @@ export class SettingsService {
     // Update password
     user.password = hashedPassword;
     await this.userRepository.save(user);
+
+    try {
+      await this.notificationsService.createNotification({
+        userId,
+        type: NotificationType.SECURITY_PASSWORD_CHANGED,
+        title: 'Password Changed',
+        message: 'Your account password was changed successfully. If this was not you, contact support immediately.',
+        category: 'security',
+        force: true,
+      });
+    } catch (error) {
+      this.logger.warn(
+        { userId, error: error instanceof Error ? error.message : 'Unknown error' },
+        'Failed to create password change notification',
+      );
+    }
 
     this.logger.info({ userId }, 'Password changed successfully');
 

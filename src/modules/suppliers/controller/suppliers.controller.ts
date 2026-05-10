@@ -16,6 +16,7 @@ import { SuppliersService } from '../service/suppliers.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CreateSupplierQuoteDto } from '../dto/create-supplier-quote.dto';
 import { SubmitSupplierQuoteDto } from '../dto/submit-quote.dto';
+import { assertAllowedQueryKeys } from '../../../common/utils/query-validation.util';
 
 @ApiTags('Suppliers')
 @ApiBearerAuth('JWT-auth')
@@ -201,7 +202,8 @@ export class SuppliersController {
   }
 
   @Get()
-  async getAllSuppliers(@Query() filters: any) {
+  async getAllSuppliers(@Query() filters: Record<string, any>) {
+    assertAllowedQueryKeys(filters, ['specialization', 'minRating']);
     return this.suppliersService.getAllSuppliers(filters);
   }
 

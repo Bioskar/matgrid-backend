@@ -7,6 +7,7 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { SupportService } from '../service/support.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { assertAllowedQueryKeys } from '../../../common/utils/query-validation.util';
 
 @ApiTags('Support')
 @ApiBearerAuth()
@@ -80,7 +81,11 @@ export class SupportController {
       }
     }
   })
-  async getFaqs(@Query('category') category?: string) {
+  async getFaqs(
+    @Query() rawQuery: Record<string, any>,
+    @Query('category') category?: string,
+  ) {
+    assertAllowedQueryKeys(rawQuery, ['category']);
     return this.supportService.getFaqs(category);
   }
 
@@ -124,7 +129,11 @@ export class SupportController {
       }
     }
   })
-  async searchFaqs(@Query('q') keyword: string) {
+  async searchFaqs(
+    @Query() rawQuery: Record<string, any>,
+    @Query('q') keyword: string,
+  ) {
+    assertAllowedQueryKeys(rawQuery, ['q']);
     return this.supportService.searchFaqs(keyword);
   }
 

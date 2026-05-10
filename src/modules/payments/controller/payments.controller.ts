@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  ParseEnumPipe,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@ne
 import { PaymentsService } from '../service/payments.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PaymentDirection } from '../entities/payment.entity';
+import { assertAllowedQueryKeys } from '../../../common/utils/query-validation.util';
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -102,8 +104,10 @@ export class PaymentsController {
   })
   async getPayments(
     @CurrentUser() user: UserPayload,
-    @Query('direction') direction?: PaymentDirection,
+    @Query() rawQuery: Record<string, any>,
+    @Query('direction', new ParseEnumPipe(PaymentDirection, { optional: true })) direction?: PaymentDirection,
   ) {
+    assertAllowedQueryKeys(rawQuery, ['direction']);
     return this.paymentsService.getUserPayments(user.userId, direction);
   }
 

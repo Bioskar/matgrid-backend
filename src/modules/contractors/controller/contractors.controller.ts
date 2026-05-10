@@ -30,6 +30,7 @@ import {
 import { UploadBOQFileDto } from '../dto/upload-boq.dto';
 import { CreateQuickQuoteDto } from '../dto/quick-quote.dto';
 import { ProjectStatus } from '../entities/project.entity';
+import { assertAllowedQueryKeys } from '../../../common/utils/query-validation.util';
 
 @ApiTags('Contractors')
 @ApiBearerAuth()
@@ -161,7 +162,12 @@ export class ContractorsController {
   @Get('materials/search')
   @ApiOperation({ summary: 'Search contractor materials' })
   @ApiResponse({ status: 200, description: 'Returns filtered materials' })
-  async searchMaterials(@CurrentUser() user: UserPayload, @Query('q') searchTerm: string) {
+  async searchMaterials(
+    @CurrentUser() user: UserPayload,
+    @Query() rawQuery: Record<string, any>,
+    @Query('q') searchTerm: string,
+  ) {
+    assertAllowedQueryKeys(rawQuery, ['q']);
     return this.contractorsService.searchMaterials(user.userId, searchTerm);
   }
 
@@ -646,7 +652,12 @@ export class ContractorsController {
       ],
     },
   })
-  async getProjects(@CurrentUser() user: UserPayload, @Query('status') status?: ProjectStatus) {
+  async getProjects(
+    @CurrentUser() user: UserPayload,
+    @Query() rawQuery: Record<string, any>,
+    @Query('status') status?: ProjectStatus,
+  ) {
+    assertAllowedQueryKeys(rawQuery, ['status']);
     return this.contractorsService.getProjects(user.userId, status);
   }
 

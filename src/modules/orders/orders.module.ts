@@ -6,11 +6,13 @@ import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { EscrowTransaction } from '../Admin/entities/escrow-transaction.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem, EscrowTransaction]),
     LoggerProviderModule,
+    NotificationsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import pino from 'pino';
 import { Payment, PaymentDirection } from '../entities/payment.entity';
+import { NotificationsService } from '../../notifications/service/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class PaymentsService {
@@ -10,6 +12,7 @@ export class PaymentsService {
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -110,6 +113,29 @@ export class PaymentsService {
   async recordPayment(paymentData: Partial<Payment>) {
     const payment = this.paymentRepository.create(paymentData);
     await this.paymentRepository.save(payment);
+
+    if (payment.userId && payment.status === 'completed') {
+      try {
+        await this.notificationsService.createNotification({
+          userId: payment.userId,
+          type: NotificationType.PAYMENT_SUCCESSFUL,
+          title: 'Payment Recorded',
+          message: `Your ${payment.direction} payment of ${payment.currency || 'NGN'} ${Number(payment.amount || 0).toLocaleString()} has been recorded as successful.`,
+          metadata: {
+            paymentId: payment.id,
+            transactionReference: payment.transactionReference,
+            amount: payment.amount,
+            direction: payment.direction,
+          },
+          category: 'order',
+        });
+      } catch (error) {
+        this.logger.warn(
+          { paymentId: payment.id, userId: payment.userId, error: error instanceof Error ? error.message : 'Unknown error' },
+          'Failed to create payment record notification',
+        );
+      }
+    }
 
     this.logger.info(
       { 

@@ -12,6 +12,7 @@ export class SmsService {
   private termiiBaseUrl: string;
   private termiiOtpUrl: string;
   private termiiVerifyUrl: string;
+  private termiiMessageUrl: string;
 
   // Twilio configuration (for international numbers)
   private twilioAccountSid: string;
@@ -30,6 +31,7 @@ export class SmsService {
     this.termiiBaseUrl = this.configService.get<string>('TERMII_BASE_URL') || 'https://api.ng.termii.com';
     this.termiiOtpUrl = `${this.termiiBaseUrl}/api/sms/otp/send`;
     this.termiiVerifyUrl = `${this.termiiBaseUrl}/api/sms/otp/verify`;
+    this.termiiMessageUrl = `${this.termiiBaseUrl}/api/sms/send`;
     this.termiiEnabled = !!this.termiiApiKey;
 
     // Initialize Twilio
@@ -289,5 +291,90 @@ export class SmsService {
    */
   isServiceEnabled(): boolean {
     return this.termiiEnabled || this.twilioEnabled;
+  }
+
+  /**
+   * Send transactional notification SMS (non-OTP)
+   */
+  async sendNotificationMessage(phoneNumber: string, message: string): Promise<boolean> {
+    if (!this.isServiceEnabled()) {
+      return false;
+    }
+
+    const isNigerian = this.isNigerianNumber(phoneNumber);
+    if (isNigerian) {
+      return this.sendMessageViaTermii(phoneNumber, message);
+    }
+
+    return this.sendMessageViaTwilio(phoneNumber, message);
+  }
+
+  private async sendMessageViaTermii(phoneNumber: string, message: string): Promise<boolean> {
+    if (!this.termiiEnabled) {
+      return false;
+    }
+
+    const formattedNumber = this.formatNigerianNumber(phoneNumber);
+
+    try {
+      await axios.post(this.termiiMessageUrl, {
+        api_key: this.termiiApiKey,
+        to: formattedNumber,
+        from: this.termiiSenderId,
+        sms: message,
+        type: 'plain',
+        channel: 'dnd',
+      });
+
+      return true;
+    } catch (error) {
+      this.logger.error(
+        {
+          phoneNumber: formattedNumber,
+          error: (error as any)?.response?.data || (error as any)?.message,
+        },
+        'Failed to send notification SMS via Termii',
+      );
+      return false;
+    }
+  }
+
+  private async sendMessageViaTwilio(phoneNumber: string, message: string): Promise<boolean> {
+    if (!this.twilioEnabled) {
+      return false;
+    }
+
+    const formattedNumber = this.formatInternationalNumber(phoneNumber);
+
+    try {
+      const response = await axios.post(
+        this.twilioApiUrl,
+        new URLSearchParams({
+          To: formattedNumber,
+          From: this.twilioFromNumber,
+          Body: message,
+        }),
+        {
+          auth: {
+            username: this.twilioAccountSid,
+            password: this.twilioAuthToken,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+
+      return ['queued', 'sent', 'delivered'].includes(response.data.status);
+    } catch (error) {
+      this.logger.error(
+        {
+          phoneNumber: formattedNumber,
+          error: (error as any)?.response?.data || (error as any)?.message,
+        },
+        'Failed to send notification SMS via Twilio',
+      );
+      return false;
+    }
   }
 }

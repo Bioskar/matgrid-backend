@@ -6,6 +6,8 @@ import { Order } from '../entities/order.entity';
 import { OrderItem } from '../entities/order-item.entity';
 import { EscrowTransaction } from '../../Admin/entities/escrow-transaction.entity';
 import { CreateOrderDto, ProcessPaymentDto } from '../dto/create-order.dto';
+import { NotificationsService } from '../../notifications/service/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class OrdersService {
@@ -17,6 +19,7 @@ export class OrdersService {
     @InjectRepository(EscrowTransaction)
     private escrowRepository: Repository<EscrowTransaction>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -91,6 +94,29 @@ export class OrdersService {
     });
 
     await this.orderItemRepository.save(orderItems);
+
+    try {
+      const uniqueSupplierIds = Array.from(new Set(items.map((item) => item.supplierId).filter(Boolean)));
+      await this.notificationsService.createForUsers(
+        uniqueSupplierIds.map((supplierId) => ({
+          userId: supplierId,
+          type: NotificationType.QUOTE_APPROVED,
+          title: 'Quote Approved',
+          message: `A contractor has approved your quote items and created order ${order.orderNumber}.`,
+          metadata: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            quoteId,
+          },
+          category: 'order' as const,
+        })),
+      );
+    } catch (error) {
+      this.logger.warn(
+        { orderId: order.id, error: error instanceof Error ? error.message : 'Unknown error' },
+        'Failed to create quote approved notifications',
+      );
+    }
 
     this.logger.info(
       { orderId: order.id, userId, orderNumber, totalAmount, itemsCount: items.length },
@@ -268,6 +294,27 @@ export class OrdersService {
 
     if (escrowRecords.length > 0) {
       await this.escrowRepository.save(escrowRecords);
+    }
+
+    try {
+      await this.notificationsService.createNotification({
+        userId,
+        type: NotificationType.PAYMENT_SUCCESSFUL,
+        title: 'Payment Successful',
+        message: `Payment for order ${order.orderNumber} was successful. Your funds are now held in escrow.`,
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          transactionReference,
+          amount: order.totalAmount,
+        },
+        category: 'order',
+      });
+    } catch (error) {
+      this.logger.warn(
+        { orderId: order.id, userId, error: error instanceof Error ? error.message : 'Unknown error' },
+        'Failed to create payment success notification',
+      );
     }
 
     this.logger.info(

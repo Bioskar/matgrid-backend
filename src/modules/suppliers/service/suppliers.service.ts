@@ -7,6 +7,8 @@ import { User, UserRole } from '../../auth/entities/user.entity';
 import { SupplierQuote } from '../entities/supplier-quote.entity';
 import { Material } from '../../quotes/entities/material.entity';
 import { Quote } from '../../quotes/entities/quote.entity';
+import { NotificationsService } from '../../notifications/service/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class SuppliersService {
@@ -22,6 +24,7 @@ export class SuppliersService {
     @InjectRepository(Quote)
     private quoteRepository: Repository<Quote>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private notificationsService: NotificationsService,
   ) {}
 
   async getOrCreateSupplier(userId: string): Promise<Supplier> {
@@ -528,6 +531,27 @@ export class SuppliersService {
     });
 
     await this.supplierQuoteRepository.save(supplierQuote);
+
+    try {
+      await this.notificationsService.createNotification({
+        userId: quote.userId,
+        type: NotificationType.QUOTE_RECEIVED,
+        title: 'New Supplier Quote Received',
+        message: `${supplier.name} submitted a quote for ${quote.title}.`,
+        metadata: {
+          quoteId,
+          supplierId,
+          supplierQuoteId: supplierQuote.id,
+          totalAmount,
+        },
+        category: 'quote',
+      });
+    } catch (error) {
+      this.logger.warn(
+        { quoteId, supplierId, error: error instanceof Error ? error.message : 'Unknown error' },
+        'Failed to create quote received notification',
+      );
+    }
 
     this.logger.info(
       { supplierId, quoteId, totalAmount, itemsCount: items.length },
