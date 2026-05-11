@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsPhoneNumber, IsString, MinLength, IsIn, Matches } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength, IsIn, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
 
@@ -62,6 +62,15 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   companyName?: string;
+
+  @ApiProperty({
+    description: 'Business/registered address for contractor accounts',
+    example: '14 Adeola Odeku St, Victoria Island, Lagos',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  businessAddress?: string;
 
   @ApiProperty({
     description: 'User role: contractor (buyer) or supplier (seller)',

@@ -11,6 +11,7 @@ import pino from 'pino';
 import * as bcrypt from 'bcryptjs';
 import { User, UserRole } from '../entities/user.entity';
 import { UserOtp } from '../entities/user-otp.entity';
+import { Contractor } from '../../contractors/entities/contractor.entity';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import {
@@ -33,6 +34,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(UserOtp)
     private otpRepository: Repository<UserOtp>,
+    @InjectRepository(Contractor)
+    private contractorRepository: Repository<Contractor>,
     private jwtService: JwtService,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
     private smsService: SmsService,
@@ -45,10 +48,14 @@ export class AuthService {
    * Validates uniqueness and hashes password before storage
    */
   async register(registerDto: RegisterDto) {
-    const { email, phoneNumber, password, fullName, company, companyName, userRole } =
+    const { email, phoneNumber, password, fullName, company, companyName, userRole, businessAddress } =
       registerDto;  
 
     const normalizedCompany = company || companyName;
+
+    if (userRole === UserRole.CONTRACTOR && !businessAddress?.trim()) {
+      throw new BadRequestException('Business address is required for contractor registration');
+    }
 
     // Validate at least one contact method provided
     if (!email && !phoneNumber) {
@@ -90,6 +97,24 @@ export class AuthService {
 
     // Save to database
     await this.userRepository.save(user);
+
+    if (user.userRole === UserRole.CONTRACTOR) {
+      const existingContractor = await this.contractorRepository.findOne({
+        where: { userId: user.id },
+      });
+
+      if (!existingContractor) {
+        const contractor = this.contractorRepository.create({
+          userId: user.id,
+          fullName: user.fullName,
+          company: normalizedCompany,
+          profilePhoto: user.profilePhoto,
+          businessAddress: businessAddress?.trim(),
+        });
+
+        await this.contractorRepository.save(contractor);
+      }
+    }
 
     if (user.email) {
       const welcomeResult = await this.emailService.sendWelcomeEmail({

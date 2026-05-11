@@ -11,10 +11,11 @@ import { LoggerProviderModule } from '../../common/modules/logger.module';
 import { CommonModule } from '../../common/modules/common.module';
 import { jwtConfig } from '../../config/jwt.config';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { Contractor } from '../contractors/entities/contractor.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserOtp]),
+    TypeOrmModule.forFeature([User, UserOtp, Contractor]),
     JwtModule.register({
       secret: jwtConfig.secret,
       signOptions: { expiresIn: '7d' },
