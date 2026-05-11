@@ -5,11 +5,13 @@ import { QuotesService } from './service/quotes.service';
 import { Quote } from './entities/quote.entity';
 import { Material } from './entities/material.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Quote, Material]),
     LoggerProviderModule,
+    KycModule,
   ],
   controllers: [QuotesController],
   providers: [QuotesService],

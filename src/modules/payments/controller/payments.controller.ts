@@ -12,10 +12,11 @@ import { PaymentsService } from '../service/payments.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PaymentDirection } from '../entities/payment.entity';
 import { assertAllowedQueryKeys } from '../../../common/utils/query-validation.util';
+import { ContractorKycCompleteGuard } from '../../kyc/guards/contractor-kyc-complete.guard';
 
 @ApiTags('Payments')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ContractorKycCompleteGuard)
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}

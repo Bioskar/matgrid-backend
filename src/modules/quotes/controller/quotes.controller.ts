@@ -10,11 +10,12 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { QuotesService } from '../service/quotes.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { ContractorKycCompleteGuard } from '../../kyc/guards/contractor-kyc-complete.guard';
 
 @ApiTags('Quotes')
 @ApiBearerAuth('JWT-auth')
 @Controller('quotes')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ContractorKycCompleteGuard)
 export class QuotesController {
   constructor(private quotesService: QuotesService) {}
 

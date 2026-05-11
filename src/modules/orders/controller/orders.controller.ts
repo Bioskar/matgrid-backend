@@ -5,11 +5,12 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { OrdersService } from '../service/orders.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CreateOrderDto, ProcessPaymentDto } from '../dto/create-order.dto';
+import { ContractorKycCompleteGuard } from '../../kyc/guards/contractor-kyc-complete.guard';
 
 @ApiTags('Orders')
 @ApiBearerAuth('JWT-auth')
 @Controller('orders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ContractorKycCompleteGuard)
 export class OrdersController {
   constructor(private ordersService: OrdersService) {}
 

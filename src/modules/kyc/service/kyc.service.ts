@@ -8,6 +8,22 @@ import * as pino from 'pino';
 
 @Injectable()
 export class KycService {
+  private readonly identityDocumentTypes: DocumentType[] = [
+    DocumentType.NIN_SLIP,
+    DocumentType.DRIVERS_LICENSE,
+    DocumentType.VOTERS_CARD,
+  ];
+
+  private readonly addressDocumentTypes: DocumentType[] = [
+    DocumentType.UTILITY_BILL,
+    DocumentType.BANK_STATEMENT,
+  ];
+
+  private readonly businessDocumentTypes: DocumentType[] = [
+    DocumentType.CAC_CERTIFICATE,
+    DocumentType.TIN_CERTIFICATE,
+  ];
+
   constructor(
     @InjectRepository(KycDocument)
     private kycDocumentRepository: Repository<KycDocument>,
@@ -126,7 +142,7 @@ export class KycService {
   /**
    * Get KYC verification status summary
    */
-  async getVerificationStatus(userId: string): Promise<any> {
+  async getVerificationStatus(userId: string, userRole: UserRole = UserRole.CONTRACTOR): Promise<any> {
     this.logger.info(
       { userId },
       '[KYC] Fetching verification status summary'
@@ -148,24 +164,40 @@ export class KycService {
       doc => doc.verificationStatus === VerificationStatus.REJECTED,
     ).length;
 
-    // Check if user has at least one identity document (NIN, Driver's License, or Voter's Card)
     const hasIdentityDoc = documents.some(
       doc =>
-        (doc.documentType === DocumentType.NIN_SLIP ||
-         doc.documentType === DocumentType.DRIVERS_LICENSE ||
-         doc.documentType === DocumentType.VOTERS_CARD) &&
+        this.identityDocumentTypes.includes(doc.documentType) &&
         doc.verificationStatus === VerificationStatus.VERIFIED,
     );
 
-    // Check if user has CAC certificate (for companies)
-    const hasCACDoc = documents.some(
+    const hasAddressDoc = documents.some(
       doc =>
-        doc.documentType === DocumentType.CAC_CERTIFICATE &&
+        this.addressDocumentTypes.includes(doc.documentType) &&
         doc.verificationStatus === VerificationStatus.VERIFIED,
     );
 
-    const isFullyVerified = hasIdentityDoc && hasCACDoc;
-    const isPartiallyVerified = hasIdentityDoc || hasCACDoc;
+    const hasBusinessDoc = documents.some(
+      doc =>
+        this.businessDocumentTypes.includes(doc.documentType) &&
+        doc.verificationStatus === VerificationStatus.VERIFIED,
+    );
+
+    const requiredCategories =
+      userRole === UserRole.SUPPLIER
+        ? (['identity', 'address', 'business'] as const)
+        : (['identity', 'address'] as const);
+
+    const completedCategories = [
+      hasIdentityDoc,
+      hasAddressDoc,
+      ...(userRole === UserRole.SUPPLIER ? [hasBusinessDoc] : []),
+    ].filter(Boolean).length;
+
+    const requiredCategoriesCount = requiredCategories.length;
+    const completionPercentage = Math.round((completedCategories / requiredCategoriesCount) * 100);
+
+    const isFullyVerified = completedCategories === requiredCategoriesCount;
+    const isPartiallyVerified = completedCategories > 0 && !isFullyVerified;
 
     let overallStatus: string;
     if (isFullyVerified) {
@@ -198,18 +230,59 @@ export class KycService {
         overallStatus,
         isFullyVerified,
         isPartiallyVerified,
+        completionPercentage,
+        requiredCategoriesCount,
+        completedCategories,
         totalDocuments,
         verifiedDocuments,
         pendingDocuments,
         rejectedDocuments,
         hasIdentityDocument: hasIdentityDoc,
-        hasCACDocument: hasCACDoc,
+        hasAddressDocument: hasAddressDoc,
+        hasBusinessDocument: hasBusinessDoc,
+        // Backward-compatible alias for older frontend consumers.
+        hasCACDocument: hasBusinessDoc,
+        isIdentityVerified: hasIdentityDoc,
+        isBusinessVerified: hasBusinessDoc,
         documents: documents.map(doc => ({
           documentType: doc.documentType,
           status: doc.verificationStatus,
           rejectionReason: doc.rejectionReason,
         })),
       },
+    };
+  }
+
+  /**
+   * Contractor KYC is complete when at least one identity and one address
+   * document have been verified.
+   */
+  async isContractorKycComplete(userId: string): Promise<{
+    isComplete: boolean;
+    hasIdentityDocument: boolean;
+    hasAddressDocument: boolean;
+  }> {
+    const documents = await this.kycDocumentRepository.find({
+      where: { userId },
+      select: ['documentType', 'verificationStatus'],
+    });
+
+    const hasIdentityDocument = documents.some(
+      doc =>
+        this.identityDocumentTypes.includes(doc.documentType) &&
+        doc.verificationStatus === VerificationStatus.VERIFIED,
+    );
+
+    const hasAddressDocument = documents.some(
+      doc =>
+        this.addressDocumentTypes.includes(doc.documentType) &&
+        doc.verificationStatus === VerificationStatus.VERIFIED,
+    );
+
+    return {
+      isComplete: hasIdentityDocument && hasAddressDocument,
+      hasIdentityDocument,
+      hasAddressDocument,
     };
   }
 
@@ -547,7 +620,7 @@ export class KycService {
           DocumentType.VOTERS_CARD,
         ],
       },
-      description: 'Contractors must provide: 2 proof of address documents and 1 identity document',
+      description: 'Contractors must provide: 1 proof of address document and 1 identity document',
     };
   }
 }

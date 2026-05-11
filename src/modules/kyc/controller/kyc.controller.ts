@@ -360,7 +360,7 @@ export class KycController {
     },
   })
   async getVerificationStatus(@CurrentUser() user: UserPayload) {
-    return this.kycService.getVerificationStatus(user.userId);
+    return this.kycService.getVerificationStatus(user.userId, user.userRole as UserRole);
   }
 
   @Delete('documents/:documentId')

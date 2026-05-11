@@ -7,12 +7,14 @@ import { OrderItem } from './entities/order-item.entity';
 import { EscrowTransaction } from '../Admin/entities/escrow-transaction.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem, EscrowTransaction]),
     LoggerProviderModule,
     NotificationsModule,
+    KycModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

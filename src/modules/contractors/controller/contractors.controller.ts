@@ -20,6 +20,7 @@ import { FileBOQParserService } from '../service/file-boq-parser.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
+import { SkipKycCheck } from '../../../common/decorators/skip-kyc-check.decorator';
 import { UserRole } from '../../auth/entities/user.entity';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import {
@@ -31,10 +32,11 @@ import { UploadBOQFileDto } from '../dto/upload-boq.dto';
 import { CreateQuickQuoteDto } from '../dto/quick-quote.dto';
 import { ProjectStatus } from '../entities/project.entity';
 import { assertAllowedQueryKeys } from '../../../common/utils/query-validation.util';
+import { ContractorKycCompleteGuard } from '../../kyc/guards/contractor-kyc-complete.guard';
 
 @ApiTags('Contractors')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ContractorKycCompleteGuard)
 @Roles(UserRole.CONTRACTOR)
 @Controller('contractors')
 export class ContractorsController {
@@ -97,6 +99,7 @@ export class ContractorsController {
       }
     }
   })
+  @SkipKycCheck()
   async getProfile(@CurrentUser() user: UserPayload) {
     return this.contractorsService.getContractorProfile(user.userId);
   }
@@ -145,6 +148,7 @@ export class ContractorsController {
       }
     }
   })
+  @SkipKycCheck()
   async updateProfile(@CurrentUser() user: UserPayload, @Body() updateDto: UpdateProfileDto) {
     return this.contractorsService.updateContractorProfile(
       user.userId,

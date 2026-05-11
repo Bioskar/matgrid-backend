@@ -84,7 +84,7 @@ export class ContractorsService {
     const contractor = await this.getOrCreateContractor(userId);
     
     // Get KYC verification status
-    const kycStatus = await this.kycService.getVerificationStatus(userId);
+    const kycStatus = await this.kycService.getVerificationStatus(userId, UserRole.CONTRACTOR);
 
     this.logger.info(
       { userId, isActive: contractor.isActive, kycStatus: kycStatus.overallStatus },
