@@ -22,6 +22,7 @@ import { SendSignInOtpDto, VerifySignInOtpDto } from '../dto/signin-otp.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { UserResponseDto, AuthResponseDto } from '../dto/user-response.dto';
 import { SmsService } from '../../../common/services/sms.service';
+import { EmailService } from '../../../common/services/email.service';
 import { NotificationsService } from '../../notifications/service/notifications.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
 
@@ -35,6 +36,7 @@ export class AuthService {
     private jwtService: JwtService,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
     private smsService: SmsService,
+    private emailService: EmailService,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -86,6 +88,35 @@ export class AuthService {
 
     // Save to database
     await this.userRepository.save(user);
+
+    if (user.email) {
+      const verificationToken = this.jwtService.sign(
+        { userId: user.id, email: user.email, type: 'email_verification' },
+        { expiresIn: '24h' },
+      );
+
+      // Email verification dispatch is best-effort and must not block registration.
+      this.emailService
+        .sendVerificationEmail(user.email, verificationToken)
+        .then((result) => {
+          if (!result.success) {
+            this.logger.warn(
+              { userId: user.id, email: user.email },
+              'Verification email was not sent successfully',
+            );
+          }
+        })
+        .catch((error) => {
+          this.logger.warn(
+            {
+              userId: user.id,
+              email: user.email,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+            'Failed to send verification email',
+          );
+        });
+    }
 
     try {
       await this.notificationsService.createNotification({
@@ -314,9 +345,6 @@ export class AuthService {
       );
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
     // Set expiry to 10 minutes
     const expiresAt = new Date(Date.now() + 10 * 60000);
 
@@ -334,8 +362,6 @@ export class AuthService {
       }
     }
 
- 
-
     // Save OTP to database
     const otpEntity = this.otpRepository.create({
       phoneNumber,
@@ -348,39 +374,24 @@ export class AuthService {
 
     await this.otpRepository.save(otpEntity);
 
-
-    // Send OTP via SMS
-    const smsSent = await this.smsService.sendOtp(phoneNumber);
-
-    if (!smsSent) {
-      if (this.smsService.isServiceEnabled()) {
-        // SMS service is enabled but failed to send
-        this.logger.error({ phoneNumber }, 'Failed to send OTP SMS');
-        throw new BadRequestException('Failed to send OTP. Please try again.');
-      } else {
-        // SMS service is disabled (no credentials)
-        this.logger.warn({ phoneNumber, otp }, 'SMS service disabled - OTP not sent (DEV MODE)');
-      }
-    }
-
     // Log OTP in development mode only
     if (process.env.NODE_ENV === 'development') {
       this.logger.info(
-        { phoneNumber, otp, expiresAt, smsSent },
+        { phoneNumber, otp: smsResult.otp, expiresAt, smsSent: smsResult.success },
         'OTP generated for user'
       );
     }
 
     return {
       success: true,
-      message: smsSent
+      message: smsResult.success
         ? 'OTP sent to your phone number'
         : 'OTP generated (SMS disabled - DEV MODE ONLY)',
       phoneNumber,
       expiresAt,
       // Only include OTP in dev when SMS is completely disabled (no credentials)
       ...(process.env.NODE_ENV === 'development' &&
-        !this.smsService.isServiceEnabled() && { otp }),
+        !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
     };
   }
 
@@ -640,6 +651,7 @@ export class AuthService {
    */
   async sendSignInOtp(sendSignInOtpDto: SendSignInOtpDto) {
     const { emailOrPhone, password } = sendSignInOtpDto;
+    const isEmailChannel = emailOrPhone.includes('@');
 
     // Find user by email or phone number
     const user = await this.userRepository.findOne({
@@ -693,19 +705,72 @@ export class AuthService {
     // Set expiry to 10 minutes
     const expiresAt = new Date(Date.now() + 10 * 60000);
 
-    // Send OTP via SMS using phone number
-    const phoneNumber = user.phoneNumber || emailOrPhone;
-    const smsResult = await this.smsService.sendOtp(phoneNumber);
+    const otpRecord = {
+      otp: null as string | null,
+      pinId: null as string | null,
+      sent: false,
+      channel: isEmailChannel ? 'email' : 'sms',
+    };
 
-    if (!smsResult.success && process.env.NODE_ENV === 'development') {
-      this.logger.info({ emailOrPhone, otp: smsResult.otp }, 'SignIn OTP generated (DEV MODE)');
+    if (isEmailChannel) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      otpRecord.otp = otp;
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #111; line-height: 1.6;">
+          <h2 style="margin-bottom: 8px;">Your MatGrid sign-in code</h2>
+          <p style="margin-bottom: 16px;">Use this OTP to complete your sign-in:</p>
+          <p style="font-size: 30px; font-weight: 700; letter-spacing: 6px; margin: 12px 0;">${otp}</p>
+          <p style="font-size: 13px; color: #666;">This code expires in 10 minutes and can be used only once.</p>
+        </div>
+      `;
+
+      const emailResult = await this.emailService.sendTransactionalEmail(
+        {
+          to: emailOrPhone,
+          subject: 'Your MatGrid sign-in OTP',
+          html,
+        },
+        { event: 'signin_otp', userId: user.id },
+      );
+
+      otpRecord.sent = emailResult.success;
+
+      if (!emailResult.success && process.env.NODE_ENV !== 'development') {
+        throw new BadRequestException('Failed to send OTP. Please try again.');
+      }
+
+      if (!emailResult.success) {
+        this.logger.warn(
+          { emailOrPhone, userId: user.id },
+          'Sign-in OTP email not sent (DEV MODE fallback enabled)',
+        );
+      }
+    } else {
+      const phoneNumber = user.phoneNumber || emailOrPhone;
+      const smsResult = await this.smsService.sendOtp(phoneNumber);
+
+      otpRecord.otp = smsResult.otp || null;
+      otpRecord.pinId = smsResult.pinId || null;
+      otpRecord.sent = smsResult.success;
+
+      if (!smsResult.success && this.smsService.isServiceEnabled()) {
+        throw new BadRequestException('Failed to send OTP. Please try again.');
+      }
+
+      if (!smsResult.success) {
+        this.logger.warn(
+          { emailOrPhone, userId: user.id },
+          'Sign-in OTP SMS not sent (DEV MODE fallback enabled)',
+        );
+      }
     }
 
     // Save OTP to database
     const otpEntity = this.otpRepository.create({
       phoneNumber: user.phoneNumber || emailOrPhone,
-      otp: smsResult.otp || null, // For Twilio (international) or dev mode
-      pinId: smsResult.pinId || null, // For Termii (Nigerian numbers)
+      otp: otpRecord.otp,
+      pinId: otpRecord.pinId,
       expiresAt,
       verified: false,
       attempts: 0,
@@ -715,13 +780,13 @@ export class AuthService {
 
     return {
       success: true,
-      message: smsResult.success
-        ? 'OTP sent to your phone number'
-        : 'OTP generated (SMS disabled - DEV MODE ONLY)',
+      message: otpRecord.sent
+        ? `OTP sent to your ${otpRecord.channel}`
+        : `OTP generated (${otpRecord.channel.toUpperCase()} disabled - DEV MODE ONLY)`,
       emailOrPhone,
       expiresAt,
       ...(process.env.NODE_ENV === 'development' &&
-        !this.smsService.isServiceEnabled() && { otp: smsResult.otp }),
+        !otpRecord.sent && { otp: otpRecord.otp }),
     };
   }
 
