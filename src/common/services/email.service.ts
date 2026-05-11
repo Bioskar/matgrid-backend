@@ -11,6 +11,13 @@ type TransactionalEmailPayload = {
   recipientName?: string;
 };
 
+type WelcomeEmailPayload = {
+  to: string;
+  recipientName?: string;
+  appUrl?: string;
+  roleLabel?: string;
+};
+
 type EmailSender = {
   email: string;
   name: string;
@@ -167,6 +174,67 @@ export class EmailService {
         html,
       },
       { event: 'email_verification' },
+    );
+  }
+
+  async sendWelcomeEmail(
+    payload: WelcomeEmailPayload,
+  ): Promise<{ success: boolean; provider: 'zeptomail' | 'smtp'; id?: string }> {
+    const name = (payload.recipientName || 'there').trim();
+    const appUrl = payload.appUrl || 'https://app.matgrid.com';
+    const roleLabel = payload.roleLabel || 'your workspace';
+
+    const html = `
+      <div style="margin:0;padding:0;background:#f7f5f2;font-family:Arial,Helvetica,sans-serif;color:#1f1f1f;">
+        <div style="max-width:640px;margin:0 auto;padding:32px 16px;">
+          <div style="background:#ffffff;border:1px solid #ece7e2;border-radius:20px;overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,0.08);">
+            <div style="background:linear-gradient(135deg,#E85E00 0%,#ff8c39 100%);padding:32px 32px 28px 32px;color:#ffffff;">
+              <p style="margin:0 0 12px 0;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;opacity:0.9;">MatGrid</p>
+              <h1 style="margin:0;font-size:30px;line-height:1.15;font-weight:800;">Welcome, ${this.escapeHtml(name)}</h1>
+              <p style="margin:14px 0 0 0;font-size:16px;line-height:1.6;max-width:520px;opacity:0.95;">
+                Your account is ready. We built MatGrid to help you source materials faster, manage quotes with less friction, and keep every project moving.
+              </p>
+            </div>
+
+            <div style="padding:32px;">
+              <p style="margin:0 0 18px 0;font-size:16px;line-height:1.7;color:#2b2b2b;">
+                You can now explore verified suppliers, request quotes, and track your work from a single dashboard. If you're a contractor, use ${this.escapeHtml(roleLabel)} to review your profile, finish KYC when ready, and unlock a smoother onboarding experience.
+              </p>
+
+              <div style="display:grid;grid-template-columns:1fr;gap:12px;margin:24px 0;">
+                <div style="background:#fff8f2;border:1px solid #ffd9bf;border-radius:14px;padding:16px;">
+                  <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#c84f00;">What you can do next</p>
+                  <p style="margin:0;font-size:14px;line-height:1.6;color:#4b4b4b;">Create your first project, compare supplier responses, and keep communication in one place.</p>
+                </div>
+                <div style="background:#f7fafc;border:1px solid #dbe7f3;border-radius:14px;padding:16px;">
+                  <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#1f4f7a;">Why users choose MatGrid</p>
+                  <p style="margin:0;font-size:14px;line-height:1.6;color:#4b4b4b;">Less back-and-forth, clearer pricing, verified partners, and a streamlined procurement workflow.</p>
+                </div>
+              </div>
+
+              <p style="margin:28px 0 14px 0;">
+                <a href="${appUrl}" style="background:#E85E00;color:#ffffff;text-decoration:none;padding:13px 20px;border-radius:10px;display:inline-block;font-weight:700;">
+                  Go to MatGrid
+                </a>
+              </p>
+
+              <p style="margin:0;font-size:13px;line-height:1.6;color:#6b6b6b;">
+                If the button does not work, open this link: <span style="word-break:break-all;color:#c84f00;">${appUrl}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return this.sendTransactionalEmail(
+      {
+        to: payload.to,
+        subject: `Welcome to MatGrid, ${name}`,
+        html,
+        recipientName: name,
+      },
+      { event: 'welcome_email' },
     );
   }
 

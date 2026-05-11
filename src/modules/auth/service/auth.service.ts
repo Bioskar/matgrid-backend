@@ -92,32 +92,18 @@ export class AuthService {
     await this.userRepository.save(user);
 
     if (user.email) {
-      const verificationToken = this.jwtService.sign(
-        { userId: user.id, email: user.email, type: 'email_verification' },
-        { expiresIn: '24h' },
-      );
+      const welcomeResult = await this.emailService.sendWelcomeEmail({
+        to: user.email,
+        recipientName: user.fullName,
+        roleLabel: user.userRole === UserRole.CONTRACTOR ? 'your contractor dashboard' : 'your supplier dashboard',
+      });
 
-      // Email verification dispatch is best-effort and must not block registration.
-      this.emailService
-        .sendVerificationEmail(user.email, verificationToken)
-        .then((result) => {
-          if (!result.success) {
-            this.logger.warn(
-              { userId: user.id, email: user.email },
-              'Verification email was not sent successfully',
-            );
-          }
-        })
-        .catch((error) => {
-          this.logger.warn(
-            {
-              userId: user.id,
-              email: user.email,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-            'Failed to send verification email',
-          );
-        });
+      if (!welcomeResult.success) {
+        this.logger.warn(
+          { userId: user.id, email: user.email },
+          'Welcome email was not sent successfully',
+        );
+      }
     }
 
     try {
@@ -562,6 +548,21 @@ export class AuthService {
     });
 
     await this.userRepository.save(user);
+
+    if (user.email) {
+      const welcomeResult = await this.emailService.sendWelcomeEmail({
+        to: user.email,
+        recipientName: user.fullName,
+        roleLabel: user.userRole === UserRole.CONTRACTOR ? 'your contractor dashboard' : 'your supplier dashboard',
+      });
+
+      if (!welcomeResult.success) {
+        this.logger.warn(
+          { userId: user.id, email: user.email },
+          'Welcome email was not sent successfully',
+        );
+      }
+    }
 
     try {
       await this.notificationsService.createNotification({
