@@ -7,6 +7,18 @@ export enum UserRole {
   ADMIN = 'admin'
 }
 
+export enum UserType {
+  INDIVIDUAL = 'individual',
+  BUSINESS = 'business'
+}
+
+export enum KycTier {
+  NOT_STARTED = 'not_started',
+  TIER_1 = 'tier_1',
+  TIER_2 = 'tier_2',
+  TIER_3 = 'tier_3'
+}
+
 @Entity('users')
 @Index(['isActive'])
 @Index(['userRole'])
@@ -56,6 +68,29 @@ export class User {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: UserType,
+    default: UserType.INDIVIDUAL,
+  })
+  userType: UserType;
+
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  bvnNumber?: string;
+
+  @Column({
+    type: 'enum',
+    enum: KycTier,
+    default: KycTier.NOT_STARTED,
+  })
+  kycTier: KycTier;
+
+  @Column({ type: 'timestamp', nullable: true })
+  kycCompletedAt?: Date;
+
+  @Column({ type: 'boolean', default: false })
+  isBvnVerified: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

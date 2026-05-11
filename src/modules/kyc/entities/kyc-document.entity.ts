@@ -7,6 +7,9 @@ export enum DocumentType {
   VOTERS_CARD = 'voters_card',
   CAC_CERTIFICATE = 'cac_certificate',
   TIN_CERTIFICATE = 'tin_certificate',
+  BVN_VERIFICATION = 'bvn_verification',
+  UTILITY_BILL = 'utility_bill',
+  BANK_STATEMENT = 'bank_statement',
 }
 
 export enum VerificationStatus {
@@ -14,6 +17,14 @@ export enum VerificationStatus {
   UNDER_REVIEW = 'under_review',
   VERIFIED = 'verified',
   REJECTED = 'rejected',
+}
+
+export enum DocumentQuality {
+  EXCELLENT = 'excellent',
+  GOOD = 'good',
+  ACCEPTABLE = 'acceptable',
+  POOR = 'poor',
+  ILLEGIBLE = 'illegible',
 }
 
 @Entity('kyc_documents')
@@ -42,6 +53,12 @@ export class KycDocument {
   @Column({ type: 'varchar', length: 255, nullable: true })
   documentNumber?: string;
 
+  @Column({ type: 'date', nullable: true })
+  issueDate?: Date;
+
+  @Column({ type: 'date', nullable: true })
+  expiryDate?: Date;
+
   @Column({
     type: 'enum',
     enum: VerificationStatus,
@@ -63,6 +80,16 @@ export class KycDocument {
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   mimeType?: string;
+
+  @Column({
+    type: 'enum',
+    enum: DocumentQuality,
+    nullable: true,
+  })
+  imageQuality?: DocumentQuality;
+
+  @Column({ type: 'boolean', default: false })
+  isExpired: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

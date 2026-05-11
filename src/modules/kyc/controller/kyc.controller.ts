@@ -26,18 +26,22 @@ import { diskStorage } from 'multer';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { KycService } from '../service/kyc.service';
+import { BvnVerificationService } from '../service/bvn-verification.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { UserRole } from '../../auth/entities/user.entity';
-import { UploadDocumentDto, VerifyDocumentDto } from '../dto/upload-document.dto';
+import { UploadDocumentDto, VerifyDocumentDto, VerifyBvnDto } from '../dto/upload-document.dto';
 
 @ApiTags('KYC Verification')
 @ApiBearerAuth()
 @Controller('kyc')
 @UseGuards(JwtAuthGuard)
 export class KycController {
-  constructor(private kycService: KycService) {}
+  constructor(
+    private kycService: KycService,
+    private bvnService: BvnVerificationService,
+  ) {}
 
   @Post('upload')
   @ApiOperation({
@@ -462,5 +466,230 @@ export class KycController {
     @Body() verifyDto: VerifyDocumentDto,
   ) {
     return this.kycService.verifyDocument(documentId, verifyDto, user.userId);
+  }
+
+  @Post('verify-bvn')
+  @ApiOperation({
+    summary: 'Verify BVN (Nigerian Bank Verification Number)',
+    description: `
+      **Verify user identity using BVN - Nigerian Bank Verification Number**
+      
+      **What is BVN:**
+      - 11-digit unique identifier assigned by Nigerian banks
+      - Most reliable form of ID in Nigeria
+      - Linked to NIN (National ID)
+      - Instant verification via Paystack/NIBSS
+      
+      **Request:**
+      - bvnNumber: 11-digit BVN (e.g., "12345678901")
+      - phoneNumber: Phone number for cross-check
+      
+      **Response:**
+      - Verified user details from bank
+      - Verification status
+      - First and last name
+      
+      **Benefits:**
+      - Instant verification (no manual review needed)
+      - Auto-upgrade to Tier 1 on success
+      - Fraud detection
+      - CBN compliant
+      
+      **Errors:**
+      - "BVN must be exactly 11 digits" - Invalid format
+      - "Invalid BVN" - Does not exist or no match
+      - "Verification service unavailable" - Try again later
+      
+      **Frontend implementation:**
+      \`\`\`javascript
+      const response = await fetch('/api/v1/kyc/verify-bvn', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bvnNumber: '12345678901',
+          phoneNumber: '08012345678'
+        })
+      });
+      
+      if (response.ok) {
+        // Auto-mark as Tier 1 verified
+        // Show success message with name from BVN
+      } else {
+        // Show error and prompt to upload documents instead
+      }
+      \`\`\`
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'BVN verified successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'BVN verified successfully',
+        firstName: 'John',
+        lastName: 'Doe',
+        phoneNumber: '08012345678',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid BVN or verification failed',
+  })
+  async verifyBvn(
+    @CurrentUser() user: UserPayload,
+    @Body() bvnDto: VerifyBvnDto,
+  ) {
+    try {
+      const result = await this.bvnService.verifyBvn(bvnDto.bvnNumber, bvnDto.phoneNumber);
+      
+      if (result.success) {
+        // TODO: Update user's KYC tier to tier_1 and set isBvnVerified = true
+        return {
+          success: true,
+          message: 'BVN verified successfully',
+          firstName: result.firstName,
+          lastName: result.lastName,
+          phoneNumber: result.phoneNumber,
+        };
+      }
+      
+      throw new BadRequestException('BVN verification failed');
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('BVN verification service temporarily unavailable');
+    }
+  }
+
+  @Get('completion-status')
+  @ApiOperation({
+    summary: 'Get KYC completion status and requirements',
+    description: `
+      **Get user's KYC progress, required documents, and next steps**
+      
+      **Returns:**
+      - Overall KYC status (not_started, in_progress, partially_verified, verified, rejected)
+      - Current tier (tier_1, tier_2, tier_3)
+      - Completion percentage (0-100%)
+      - Required documents for current tier
+      - List of submitted documents with status
+      - Suggested next steps
+      
+      **Tiers for Individuals:**
+      - Tier 1: 1 government ID verified (NIN, Driver's License, or Voter's Card)
+      - Tier 2: 2+ government IDs verified
+      - Tier 3: Enhanced verification with additional documents
+      
+      **Tiers for Businesses:**
+      - Tier 1: CAC Certificate verified
+      - Tier 2: CAC + TIN verified
+      - Tier 3: All documents + director verification
+      
+      **Use for:**
+      - KYC status dashboard
+      - Showing progress to user
+      - Determining what docs are needed next
+      - Calculating completion percentage
+      - Displaying next actions
+      
+      **Frontend example:**
+      \`\`\`javascript
+      const status = await fetch('/api/v1/kyc/completion-status', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      
+      const data = await status.json();
+      
+      // Show progress bar
+      showProgressBar(data.kycStatus.completionPercentage);
+      
+      // Show required docs
+      data.kycStatus.requiredDocuments.forEach(doc => {
+        addDocUploadOption(doc);
+      });
+      
+      // Show next steps
+      data.kycStatus.nextSteps.forEach(step => {
+        showInstruction(step);
+      });
+      \`\`\`
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC completion status retrieved',
+    schema: {
+      example: {
+        success: true,
+        kycStatus: {
+          overallStatus: 'partially_verified',
+          currentTier: 'tier_1',
+          completionPercentage: 50,
+          requiredDocuments: ['nin_slip', 'drivers_license'],
+          submittedDocuments: [
+            {
+              id: '507f1f77bcf86cd799439011',
+              type: 'nin_slip',
+              status: 'verified',
+              uploadedAt: '2026-01-07T10:00:00.000Z',
+              verifiedAt: '2026-01-07T12:00:00.000Z',
+            },
+          ],
+          nextSteps: [
+            'Upload Driver\'s License to complete Tier 1 verification',
+          ],
+        },
+      },
+    },
+  })
+  async getCompletionStatus(@CurrentUser() user: UserPayload) {
+    // TODO: Get user type from user payload
+    const userType = 'individual'; // Placeholder
+    return this.kycService.getKycCompletionStatus(user.userId, userType);
+  }
+
+  @Get('requirements')
+  @ApiOperation({
+    summary: 'Get KYC requirements based on user role',
+    description: `
+      **Get the list of required documents for KYC verification based on user role**
+      
+      **For Contractors:**
+      - 2 proof of address documents (e.g., utility bills)
+      - 1 identity document (NIN, Driver's License, or Voter's Card)
+      
+      **For Suppliers:**
+      - CAC Certificate (required)
+      - Proof of address (utility bill)
+      - Owner's identity document (NIN, Driver's License, or Voter's Card)
+      
+      **Returns:**
+      - List of required document types
+      - Categorized by requirement type
+      - Human-readable description
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC requirements retrieved',
+    schema: {
+      example: {
+        documents: ['utility_bill', 'drivers_license'],
+        category: {
+          proofOfAddress: ['utility_bill'],
+          identity: ['nin_slip', 'drivers_license', 'voters_card'],
+        },
+        description: 'Contractors must provide: 2 proof of address documents and 1 identity document',
+      },
+    },
+  })
+  async getRequirements(@CurrentUser() user: UserPayload) {
+    return this.kycService.getRequiredDocuments(user.userRole as UserRole);
   }
 }

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { KycDocument, DocumentType, VerificationStatus } from '../entities/kyc-document.entity';
 import { UploadDocumentDto, VerifyDocumentDto } from '../dto/upload-document.dto';
+import { UserRole } from '../../auth/entities/user.entity';
 import * as pino from 'pino';
 
 @Injectable()
@@ -257,7 +258,7 @@ export class KycService {
       throw new NotFoundException('Document not found');
     }
 
-    if (verifyDto.status === 'rejected' && !verifyDto.rejectionReason) {
+    if (verifyDto.status === 'rejected' && !verifyDto.reason) {
       throw new BadRequestException('Rejection reason is required when rejecting a document');
     }
 
@@ -267,7 +268,7 @@ export class KycService {
         : VerificationStatus.REJECTED;
     document.verifiedBy = adminUserId;
     document.verifiedAt = new Date();
-    document.rejectionReason = verifyDto.rejectionReason || null;
+    document.rejectionReason = verifyDto.reason || null;
 
     await this.kycDocumentRepository.save(document);
 
@@ -327,6 +328,226 @@ export class KycService {
         verificationStatus: doc.verificationStatus,
         uploadedAt: doc.createdAt,
       })),
+    };
+  }
+
+  /**
+   * Get required documents for user based on type and tier
+   */
+  getRequiredDocumentsByTier(userType: string, tier: string): DocumentType[] {
+    if (userType === 'individual') {
+      // Individual KYC Tiers
+      switch (tier) {
+        case 'tier_1':
+          return [DocumentType.NIN_SLIP]; // At least one ID
+        case 'tier_2':
+          return [DocumentType.NIN_SLIP, DocumentType.DRIVERS_LICENSE]; // Multiple IDs
+        case 'tier_3':
+          return [DocumentType.NIN_SLIP, DocumentType.DRIVERS_LICENSE]; // + extra docs
+        default:
+          return [];
+      }
+    } else if (userType === 'business') {
+      // Business KYC Tiers
+      switch (tier) {
+        case 'tier_1':
+          return [DocumentType.CAC_CERTIFICATE];
+        case 'tier_2':
+          return [DocumentType.CAC_CERTIFICATE, DocumentType.TIN_CERTIFICATE];
+        case 'tier_3':
+          return [DocumentType.CAC_CERTIFICATE, DocumentType.TIN_CERTIFICATE];
+        default:
+          return [];
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Get KYC completion status and requirements
+   */
+  async getKycCompletionStatus(userId: string, userType: string): Promise<any> {
+    const documents = await this.kycDocumentRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    // Determine current tier
+    let currentTier = 'tier_1';
+    const verifiedDocs = documents.filter(d => d.verificationStatus === VerificationStatus.VERIFIED);
+
+    if (userType === 'individual') {
+      if (verifiedDocs.some(d => [DocumentType.NIN_SLIP, DocumentType.DRIVERS_LICENSE, DocumentType.VOTERS_CARD].includes(d.documentType as any))) {
+        currentTier = 'tier_1';
+      }
+      if (verifiedDocs.length >= 2) {
+        currentTier = 'tier_2';
+      }
+    } else if (userType === 'business') {
+      if (verifiedDocs.some(d => d.documentType === DocumentType.CAC_CERTIFICATE)) {
+        currentTier = 'tier_1';
+      }
+      if (verifiedDocs.some(d => d.documentType === DocumentType.TIN_CERTIFICATE) && verifiedDocs.some(d => d.documentType === DocumentType.CAC_CERTIFICATE)) {
+        currentTier = 'tier_2';
+      }
+    }
+
+    const requiredDocs = this.getRequiredDocumentsByTier(userType, currentTier);
+    const completionPercentage = verifiedDocs.length > 0 
+      ? Math.round((verifiedDocs.length / requiredDocs.length) * 100)
+      : 0;
+
+    let overallStatus = 'not_started';
+    if (documents.length === 0) {
+      overallStatus = 'not_started';
+    } else if (documents.some(d => d.verificationStatus === VerificationStatus.PENDING || d.verificationStatus === VerificationStatus.UNDER_REVIEW)) {
+      overallStatus = 'in_progress';
+    } else if (verifiedDocs.length > 0 && verifiedDocs.length < requiredDocs.length) {
+      overallStatus = 'partially_verified';
+    } else if (verifiedDocs.length === requiredDocs.length) {
+      overallStatus = 'verified';
+    } else if (documents.some(d => d.verificationStatus === VerificationStatus.REJECTED)) {
+      overallStatus = 'rejected';
+    }
+
+    this.logger.info(
+      { userId, currentTier, overallStatus, completionPercentage },
+      '[KYC] Completion status calculated'
+    );
+
+    return {
+      success: true,
+      kycStatus: {
+        overallStatus,
+        currentTier,
+        completionPercentage,
+        requiredDocuments: requiredDocs,
+        submittedDocuments: documents.map(d => ({
+          id: d.id,
+          type: d.documentType,
+          status: d.verificationStatus,
+          uploadedAt: d.createdAt,
+          verifiedAt: d.verifiedAt,
+          rejectionReason: d.rejectionReason,
+        })),
+        nextSteps: this.getNextSteps(overallStatus, requiredDocs, verifiedDocs),
+      },
+    };
+  }
+
+  /**
+   * Get suggested next steps based on KYC status
+   */
+  private getNextSteps(status: string, required: DocumentType[], verified: any[]): string[] {
+    const steps: string[] = [];
+
+    if (status === 'not_started') {
+      steps.push('Upload government-issued ID (NIN, Driver\'s License, or Voter\'s Card)');
+    } else if (status === 'in_progress') {
+      steps.push('Waiting for document review. Check back in 24-48 hours.');
+    } else if (status === 'partially_verified') {
+      const missingDocs = required.filter(r => !verified.some(v => v.documentType === r));
+      steps.push(`Upload missing document(s): ${missingDocs.join(', ')}`);
+    } else if (status === 'verified') {
+      steps.push('KYC verification complete. You can now access all platform features.');
+    } else if (status === 'rejected') {
+      steps.push('Document was rejected. Please resubmit with a clearer photo.');
+    }
+
+    return steps;
+  }
+
+  /**
+   * Update user's KYC tier after verification
+   */
+  async updateUserKycTier(userId: string, userType: string): Promise<any> {
+    const documents = await this.kycDocumentRepository.find({
+      where: { userId },
+    });
+
+    const verifiedDocs = documents.filter(d => d.verificationStatus === VerificationStatus.VERIFIED);
+
+    // Determine tier based on verified documents
+    let newTier = 'not_started';
+
+    if (userType === 'individual') {
+      if (verifiedDocs.some(d => [DocumentType.NIN_SLIP, DocumentType.DRIVERS_LICENSE, DocumentType.VOTERS_CARD].includes(d.documentType as any))) {
+        newTier = 'tier_1';
+      }
+      if (verifiedDocs.length >= 2) {
+        newTier = 'tier_2';
+      }
+    } else if (userType === 'business') {
+      if (verifiedDocs.some(d => d.documentType === DocumentType.CAC_CERTIFICATE)) {
+        newTier = 'tier_1';
+      }
+      if (verifiedDocs.some(d => d.documentType === DocumentType.TIN_CERTIFICATE) && verifiedDocs.some(d => d.documentType === DocumentType.CAC_CERTIFICATE)) {
+        newTier = 'tier_2';
+      }
+    }
+
+    this.logger.info(
+      { userId, userType, newTier },
+      '[KYC] User tier determined'
+    );
+
+    return {
+      success: true,
+      tier: newTier,
+      verifiedDocuments: verifiedDocs.length,
+    };
+  }
+
+  /**
+   * Get required documents based on user role
+   * - Contractors: 2 proof of address documents + any 1 of 3 ID documents
+   * - Suppliers: CAC certificate (required) + 1 proof of address + owner ID (1 of 3)
+   */
+  getRequiredDocuments(userRole: UserRole): {
+    documents: DocumentType[];
+    category: { [key: string]: DocumentType[] };
+    description: string;
+  } {
+    if (userRole === UserRole.SUPPLIER) {
+      return {
+        documents: [
+          DocumentType.CAC_CERTIFICATE,
+          DocumentType.UTILITY_BILL,
+          DocumentType.NIN_SLIP,
+          DocumentType.DRIVERS_LICENSE,
+          DocumentType.VOTERS_CARD,
+        ],
+        category: {
+          required: [DocumentType.CAC_CERTIFICATE],
+          proofOfAddress: [DocumentType.UTILITY_BILL],
+          ownerIdentity: [
+            DocumentType.NIN_SLIP,
+            DocumentType.DRIVERS_LICENSE,
+            DocumentType.VOTERS_CARD,
+          ],
+        },
+        description: 'Suppliers must provide: CAC certificate (required), proof of address (utility bill), and owner identity document',
+      };
+    }
+
+    // Default for contractors
+    return {
+      documents: [
+        DocumentType.UTILITY_BILL,
+        DocumentType.BANK_STATEMENT,
+        DocumentType.NIN_SLIP,
+        DocumentType.DRIVERS_LICENSE,
+        DocumentType.VOTERS_CARD,
+      ],
+      category: {
+        proofOfAddress: [DocumentType.UTILITY_BILL, DocumentType.BANK_STATEMENT],
+        identity: [
+          DocumentType.NIN_SLIP,
+          DocumentType.DRIVERS_LICENSE,
+          DocumentType.VOTERS_CARD,
+        ],
+      },
+      description: 'Contractors must provide: 2 proof of address documents and 1 identity document',
     };
   }
 }

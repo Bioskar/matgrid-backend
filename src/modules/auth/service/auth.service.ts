@@ -215,21 +215,6 @@ export class AuthService {
     user.lastLogin = new Date();
     await this.userRepository.save(user);
 
-    try {
-      await this.notificationsService.createNotification({
-        userId: user.id,
-        type: NotificationType.ACCOUNT_WELCOME,
-        title: 'Welcome to MatGrid',
-        message: 'Your phone registration is complete. You can now create projects and request supplier quotes.',
-        category: 'account',
-      });
-    } catch (error) {
-      this.logger.warn(
-        { userId: user.id, error: error instanceof Error ? error.message : 'Unknown error' },
-        'Failed to create OTP registration notification',
-      );
-    }
-
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.userRole);
 
