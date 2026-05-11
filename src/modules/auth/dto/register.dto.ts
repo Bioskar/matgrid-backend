@@ -55,6 +55,15 @@ export class RegisterDto {
   company?: string;
 
   @ApiProperty({
+    description: 'Company name (legacy alias)',
+    example: 'Acme Corporation',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @ApiProperty({
     description: 'User role: contractor (buyer) or supplier (seller)',
     example: 'contractor',
     enum: [UserRole.CONTRACTOR, UserRole.SUPPLIER],

@@ -45,8 +45,10 @@ export class AuthService {
    * Validates uniqueness and hashes password before storage
    */
   async register(registerDto: RegisterDto) {
-    const { email, phoneNumber, password, fullName, company, userRole } =
+    const { email, phoneNumber, password, fullName, company, companyName, userRole } =
       registerDto;  
+
+    const normalizedCompany = company || companyName;
 
     // Validate at least one contact method provided
     if (!email && !phoneNumber) {
@@ -82,7 +84,7 @@ export class AuthService {
       phoneNumber,
       password: hashedPassword,
       fullName,
-      company,
+      company: normalizedCompany,
       userRole: (userRole || UserRole.CONTRACTOR) as UserRole,
     });
 
