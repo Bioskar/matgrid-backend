@@ -128,6 +128,21 @@ export class AuthService {
         message: 'Your account has been created successfully. Start requesting and managing quotes.',
         category: 'account',
       });
+
+      if (user.userRole === UserRole.CONTRACTOR) {
+        await this.notificationsService.createNotification({
+          userId: user.id,
+          type: NotificationType.ACCOUNT_WELCOME,
+          title: 'Complete KYC Verification',
+          message: 'Complete your KYC to unlock full access and start receiving the best supplier responses.',
+          metadata: {
+            actionUrl: '/dashboard/contractor/profile',
+            actionLabel: 'Complete KYC',
+          },
+          category: 'account',
+          force: true,
+        });
+      }
     } catch (error) {
       this.logger.warn(
         { userId: user.id, error: error instanceof Error ? error.message : 'Unknown error' },
@@ -547,6 +562,36 @@ export class AuthService {
     });
 
     await this.userRepository.save(user);
+
+    try {
+      await this.notificationsService.createNotification({
+        userId: user.id,
+        type: NotificationType.ACCOUNT_WELCOME,
+        title: 'Welcome to MatGrid',
+        message: 'Your account has been created successfully. Start requesting and managing quotes.',
+        category: 'account',
+      });
+
+      if (user.userRole === UserRole.CONTRACTOR) {
+        await this.notificationsService.createNotification({
+          userId: user.id,
+          type: NotificationType.ACCOUNT_WELCOME,
+          title: 'Complete KYC Verification',
+          message: 'Complete your KYC to unlock full access and start receiving the best supplier responses.',
+          metadata: {
+            actionUrl: '/dashboard/contractor/profile',
+            actionLabel: 'Complete KYC',
+          },
+          category: 'account',
+          force: true,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        { userId: user.id, error: error instanceof Error ? error.message : 'Unknown error' },
+        'Failed to create OTP registration notification',
+      );
+    }
 
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.userRole);
