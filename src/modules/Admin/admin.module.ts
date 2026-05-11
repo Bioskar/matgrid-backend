@@ -12,6 +12,7 @@ import { Supplier } from '../suppliers/entities/supplier.entity';
 import { Contractor } from '../contractors/entities/contractor.entity';
 import { KycDocument } from '../kyc/entities/kyc-document.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { LoggerProviderModule } from '../../common/modules/logger.module';
       PlatformSettings,
     ]),
     LoggerProviderModule,
+    NotificationsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminSeederService],

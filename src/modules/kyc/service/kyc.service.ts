@@ -5,6 +5,9 @@ import { KycDocument, DocumentType, VerificationStatus, DocumentSide } from '../
 import { UploadDocumentDto, VerifyDocumentDto } from '../dto/upload-document.dto';
 import { UserRole } from '../../auth/entities/user.entity';
 import * as pino from 'pino';
+import { User } from '../../auth/entities/user.entity';
+import { NotificationsService } from '../../notifications/service/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class KycService {
@@ -27,7 +30,10 @@ export class KycService {
   constructor(
     @InjectRepository(KycDocument)
     private kycDocumentRepository: Repository<KycDocument>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     @Inject('PINO_LOGGER') private logger: pino.Logger,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -88,6 +94,51 @@ export class KycService {
           { userId, documentType: uploadDto.documentType, documentId: document.id },
           'KYC document uploaded',
         );
+      }
+
+      // Notify admins for new submissions once per document type (front side as primary signal).
+      if (!existingDoc && (uploadDto.documentSide ?? DocumentSide.FRONT) === DocumentSide.FRONT) {
+        try {
+          const uploader = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'fullName', 'email', 'userRole'],
+          });
+
+          const adminUsers = await this.userRepository.find({
+            where: { userRole: UserRole.ADMIN, isActive: true },
+            select: ['id'],
+          });
+
+          if (adminUsers.length > 0) {
+            await Promise.all(
+              adminUsers.map((admin) =>
+                this.notificationsService.createNotification({
+                  userId: admin.id,
+                  type: NotificationType.ACCOUNT_WELCOME,
+                  title: 'New KYC submission received',
+                  message: `${uploader?.fullName || uploader?.email || 'A user'} uploaded ${uploadDto.documentType.replace('_', ' ')} for review.`,
+                  metadata: {
+                    actionUrl: '/dashboard/admin/identity-kyc',
+                    actionLabel: 'Review KYC',
+                    submittedByUserId: userId,
+                    documentType: uploadDto.documentType,
+                  },
+                  category: 'account',
+                  force: true,
+                }),
+              ),
+            );
+          }
+        } catch (notifyError) {
+          this.logger.warn(
+            {
+              userId,
+              documentType: uploadDto.documentType,
+              error: notifyError instanceof Error ? notifyError.message : 'Unknown error',
+            },
+            'Failed to dispatch admin KYC submission notification',
+          );
+        }
       }
 
       return {

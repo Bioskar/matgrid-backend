@@ -25,6 +25,8 @@ import {
   ResolveDisputeDto,
   ReleaseEscrowDto,
 } from '../dto/admin.dto';
+import { NotificationsService } from '../../notifications/service/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class AdminService {
@@ -45,6 +47,7 @@ export class AdminService {
     private readonly escrowRepo: Repository<EscrowTransaction>,
     @InjectRepository(PlatformSettings)
     private readonly settingsRepo: Repository<PlatformSettings>,
+    private readonly notificationsService: NotificationsService,
     private readonly dataSource: DataSource,
     @Inject('PINO_LOGGER') private readonly logger: Logger,
   ) {}
@@ -577,6 +580,36 @@ export class AdminService {
     }
 
     await this.supplierRepo.save(supplier);
+
+    try {
+      const approved = action === 'approve';
+      await this.notificationsService.createNotification({
+        userId: supplierId,
+        type: NotificationType.ACCOUNT_WELCOME,
+        title: approved ? 'Supplier account approved' : 'Supplier account rejected',
+        message: approved
+          ? 'Your supplier account has been approved. You can now trade fully on MatGrid.'
+          : `Your supplier account review was rejected${reason ? `: ${reason}` : '. Please update your details and resubmit.'}`,
+        metadata: {
+          actionUrl: '/dashboard/supplier/settings',
+          actionLabel: approved ? 'Go to dashboard' : 'Review settings',
+          reviewType: 'supplier_application',
+          status: approved ? 'approved' : 'rejected',
+        },
+        category: 'account',
+        force: true,
+      });
+    } catch (error) {
+      this.logger.warn(
+        {
+          supplierId,
+          action,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'Failed to dispatch supplier review notification',
+      );
+    }
+
     this.logger.info({ supplierId, action }, 'Admin reviewed supplier');
     return {
       message: `Supplier ${action === 'approve' ? 'approved' : 'rejected'} successfully.`,
@@ -801,6 +834,34 @@ export class AdminService {
       await this.supplierRepo.save(supplier);
     }
 
+    try {
+      await this.notificationsService.createNotification({
+        userId,
+        type: NotificationType.ACCOUNT_WELCOME,
+        title: 'KYC approved',
+        message: 'Your KYC verification was successful. Your account is now fully verified.',
+        metadata: {
+          actionUrl:
+            supplier
+              ? '/dashboard/supplier/settings'
+              : '/dashboard/contractor/profile',
+          actionLabel: 'View verification status',
+          reviewType: 'kyc',
+          status: 'verified',
+        },
+        category: 'account',
+        force: true,
+      });
+    } catch (error) {
+      this.logger.warn(
+        {
+          userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'Failed to dispatch KYC approval notification',
+      );
+    }
+
     this.logger.info({ userId }, 'Admin approved KYC');
     return { message: 'KYC approved successfully.' };
   }
@@ -823,6 +884,34 @@ export class AdminService {
       supplier.verificationStatus = 'rejected';
       supplier.isActive = false;
       await this.supplierRepo.save(supplier);
+    }
+
+    try {
+      await this.notificationsService.createNotification({
+        userId,
+        type: NotificationType.ACCOUNT_WELCOME,
+        title: 'KYC rejected',
+        message: `Your KYC verification was rejected${dto.reason ? `: ${dto.reason}` : '. Please resubmit your documents.'}`,
+        metadata: {
+          actionUrl:
+            supplier
+              ? '/dashboard/kyc/submit'
+              : '/dashboard/kyc/submit',
+          actionLabel: 'Resubmit KYC',
+          reviewType: 'kyc',
+          status: 'rejected',
+        },
+        category: 'account',
+        force: true,
+      });
+    } catch (error) {
+      this.logger.warn(
+        {
+          userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'Failed to dispatch KYC rejection notification',
+      );
     }
 
     this.logger.info({ userId, reason: dto.reason }, 'Admin rejected KYC');

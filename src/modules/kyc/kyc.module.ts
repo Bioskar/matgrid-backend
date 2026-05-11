@@ -6,11 +6,14 @@ import { BvnVerificationService } from './service/bvn-verification.service';
 import { KycDocument } from './entities/kyc-document.entity';
 import { LoggerProviderModule } from '../../common/modules/logger.module';
 import { ContractorKycCompleteGuard } from './guards/contractor-kyc-complete.guard';
+import { User } from '../auth/entities/user.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([KycDocument]),
+    TypeOrmModule.forFeature([KycDocument, User]),
     LoggerProviderModule,
+    NotificationsModule,
   ],
   controllers: [KycController],
   providers: [KycService, BvnVerificationService, ContractorKycCompleteGuard],
