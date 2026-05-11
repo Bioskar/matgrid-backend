@@ -1,6 +1,6 @@
 import { IsEnum, IsOptional, IsString, IsDateString, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { DocumentType } from '../entities/kyc-document.entity';
+import { DocumentType, DocumentSide } from '../entities/kyc-document.entity';
 
 export class UploadDocumentDto {
   @ApiProperty({
@@ -10,6 +10,15 @@ export class UploadDocumentDto {
   })
   @IsEnum(DocumentType)
   documentType: DocumentType;
+
+  @ApiPropertyOptional({
+    description: 'Document side (front or back)',
+    enum: DocumentSide,
+    example: DocumentSide.FRONT,
+  })
+  @IsOptional()
+  @IsEnum(DocumentSide)
+  documentSide?: DocumentSide;
 
   @ApiPropertyOptional({
     description: 'The uploaded file',

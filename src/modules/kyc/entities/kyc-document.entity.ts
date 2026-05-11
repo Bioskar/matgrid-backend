@@ -12,6 +12,11 @@ export enum DocumentType {
   BANK_STATEMENT = 'bank_statement',
 }
 
+export enum DocumentSide {
+  FRONT = 'front',
+  BACK = 'back',
+}
+
 export enum VerificationStatus {
   PENDING = 'pending',
   UNDER_REVIEW = 'under_review',
@@ -28,7 +33,7 @@ export enum DocumentQuality {
 }
 
 @Entity('kyc_documents')
-@Index(['userId', 'documentType'])
+@Index(['userId', 'documentType', 'documentSide'])
 @Index(['verificationStatus'])
 export class KycDocument {
   @PrimaryGeneratedColumn('uuid')
@@ -49,6 +54,9 @@ export class KycDocument {
 
   @Column({ type: 'varchar', length: 500 })
   documentUrl: string;
+
+  @Column({ type: 'varchar', length: 20, default: DocumentSide.FRONT })
+  documentSide: DocumentSide;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   documentNumber?: string;

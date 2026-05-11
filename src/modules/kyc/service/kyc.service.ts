@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { KycDocument, DocumentType, VerificationStatus } from '../entities/kyc-document.entity';
+import { KycDocument, DocumentType, VerificationStatus, DocumentSide } from '../entities/kyc-document.entity';
 import { UploadDocumentDto, VerifyDocumentDto } from '../dto/upload-document.dto';
 import { UserRole } from '../../auth/entities/user.entity';
 import * as pino from 'pino';
@@ -44,6 +44,7 @@ export class KycService {
         where: {
           userId,
           documentType: uploadDto.documentType,
+          documentSide: uploadDto.documentSide ?? DocumentSide.FRONT,
         },
       });
 
@@ -60,6 +61,7 @@ export class KycService {
         userId,
         documentType: uploadDto.documentType,
         documentUrl,
+        documentSide: uploadDto.documentSide ?? DocumentSide.FRONT,
         documentNumber: uploadDto.documentNumber,
         verificationStatus: VerificationStatus.PENDING,
         fileSize: `${(file.size / 1024).toFixed(2)} KB`,
@@ -94,6 +96,7 @@ export class KycService {
         document: {
           id: document.id,
           documentType: document.documentType,
+          documentSide: document.documentSide,
           documentUrl: document.documentUrl,
           verificationStatus: document.verificationStatus,
           uploadedAt: document.createdAt,
@@ -129,6 +132,7 @@ export class KycService {
       documents: documents.map(doc => ({
         id: doc.id,
         documentType: doc.documentType,
+        documentSide: doc.documentSide,
         documentUrl: doc.documentUrl,
         documentNumber: doc.documentNumber,
         verificationStatus: doc.verificationStatus,
@@ -466,8 +470,9 @@ export class KycService {
     }
 
     const requiredDocs = this.getRequiredDocumentsByTier(userType, currentTier);
-    const completionPercentage = verifiedDocs.length > 0 
-      ? Math.round((verifiedDocs.length / requiredDocs.length) * 100)
+    const uniqueVerifiedTypes = new Set(verifiedDocs.map(d => d.documentType));
+    const completionPercentage = uniqueVerifiedTypes.size > 0
+      ? Math.min(100, Math.round((uniqueVerifiedTypes.size / requiredDocs.length) * 100))
       : 0;
 
     let overallStatus = 'not_started';
@@ -475,9 +480,9 @@ export class KycService {
       overallStatus = 'not_started';
     } else if (documents.some(d => d.verificationStatus === VerificationStatus.PENDING || d.verificationStatus === VerificationStatus.UNDER_REVIEW)) {
       overallStatus = 'in_progress';
-    } else if (verifiedDocs.length > 0 && verifiedDocs.length < requiredDocs.length) {
+    } else if (uniqueVerifiedTypes.size > 0 && uniqueVerifiedTypes.size < requiredDocs.length) {
       overallStatus = 'partially_verified';
-    } else if (verifiedDocs.length === requiredDocs.length) {
+    } else if (uniqueVerifiedTypes.size >= requiredDocs.length) {
       overallStatus = 'verified';
     } else if (documents.some(d => d.verificationStatus === VerificationStatus.REJECTED)) {
       overallStatus = 'rejected';
@@ -498,6 +503,7 @@ export class KycService {
         submittedDocuments: documents.map(d => ({
           id: d.id,
           type: d.documentType,
+          side: d.documentSide,
           status: d.verificationStatus,
           uploadedAt: d.createdAt,
           verifiedAt: d.verifiedAt,
@@ -585,21 +591,23 @@ export class KycService {
       return {
         documents: [
           DocumentType.CAC_CERTIFICATE,
+          DocumentType.TIN_CERTIFICATE,
           DocumentType.UTILITY_BILL,
+          DocumentType.BANK_STATEMENT,
           DocumentType.NIN_SLIP,
           DocumentType.DRIVERS_LICENSE,
           DocumentType.VOTERS_CARD,
         ],
         category: {
-          required: [DocumentType.CAC_CERTIFICATE],
-          proofOfAddress: [DocumentType.UTILITY_BILL],
-          ownerIdentity: [
+          business: [DocumentType.CAC_CERTIFICATE, DocumentType.TIN_CERTIFICATE],
+          address: [DocumentType.UTILITY_BILL, DocumentType.BANK_STATEMENT],
+          identity: [
             DocumentType.NIN_SLIP,
             DocumentType.DRIVERS_LICENSE,
             DocumentType.VOTERS_CARD,
           ],
         },
-        description: 'Suppliers must provide: CAC certificate (required), proof of address (utility bill), and owner identity document',
+        description: 'Suppliers must provide one Business document (CAC/TIN), one Address document (Utility Bill/Bank Statement), and one Identity document (NIN/Driver\'s License/Voter\'s Card)',
       };
     }
 
@@ -613,7 +621,7 @@ export class KycService {
         DocumentType.VOTERS_CARD,
       ],
       category: {
-        proofOfAddress: [DocumentType.UTILITY_BILL, DocumentType.BANK_STATEMENT],
+        address: [DocumentType.UTILITY_BILL, DocumentType.BANK_STATEMENT],
         identity: [
           DocumentType.NIN_SLIP,
           DocumentType.DRIVERS_LICENSE,
