@@ -8,6 +8,7 @@ import { LoggerProviderModule } from '../../common/modules/logger.module';
 import { ContractorKycCompleteGuard } from './guards/contractor-kyc-complete.guard';
 import { User } from '../auth/entities/user.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { R2StorageService } from '../../common/services/r2-storage.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [KycController],
-  providers: [KycService, BvnVerificationService, ContractorKycCompleteGuard],
+  providers: [KycService, BvnVerificationService, ContractorKycCompleteGuard, R2StorageService],
   exports: [KycService, BvnVerificationService, ContractorKycCompleteGuard],
 })
 export class KycModule {}

@@ -60,8 +60,8 @@ export class KycService {
         );
       }
 
-      // Create document URL (relative path)
-      const documentUrl = `/uploads/kyc/${file.filename}`;
+      // Use the R2 public URL attached by the controller
+      const documentUrl = (file as any).r2Url as string;
 
       const documentData = {
         userId,

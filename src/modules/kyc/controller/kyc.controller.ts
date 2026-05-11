@@ -22,11 +22,11 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import * as path from 'node:path';
-import * as fs from 'node:fs';
 import { KycService } from '../service/kyc.service';
 import { BvnVerificationService } from '../service/bvn-verification.service';
+import { R2StorageService } from '../../../common/services/r2-storage.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -41,6 +41,7 @@ export class KycController {
   constructor(
     private kycService: KycService,
     private bvnService: BvnVerificationService,
+    private r2Storage: R2StorageService,
   ) {}
 
   @Post('upload')
@@ -163,22 +164,7 @@ export class KycController {
   })
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadDir = 'uploads/kyc';
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          cb(null, uploadDir);
-        },
-        filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.floor(Math.random() * 16).toString(16))
-            .join('');
-          cb(null, `${randomName}${path.extname(file.originalname)}`);
-        },
-      }),
+      storage: memoryStorage(),
       limits: {
         fileSize: 5 * 1024 * 1024, // 5MB
       },
@@ -206,15 +192,19 @@ export class KycController {
       throw new BadRequestException('No file uploaded');
     }
 
-    try {
-      return await this.kycService.uploadDocument(user.userId, uploadDto, file);
-    } catch (error) {
-      // Clean up file if upload fails
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-      throw error;
-    }
+    // Generate a unique key and upload directly to R2
+    const randomName = Array(32)
+      .fill(null)
+      .map(() => Math.floor(Math.random() * 16).toString(16))
+      .join('');
+    const ext = path.extname(file.originalname);
+    const r2Key = `kyc/${randomName}${ext}`;
+    const publicUrl = await this.r2Storage.uploadFile(r2Key, file.buffer, file.mimetype);
+
+    // Attach the R2 public URL so the service stores it in the DB
+    (file as any).r2Url = publicUrl;
+
+    return this.kycService.uploadDocument(user.userId, uploadDto, file);
   }
 
   @Get('documents')
