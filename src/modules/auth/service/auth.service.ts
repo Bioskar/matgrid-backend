@@ -774,22 +774,10 @@ export class AuthService {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       otpRecord.otp = otp;
 
-      const html = `
-        <div style="font-family: Arial, sans-serif; color: #111; line-height: 1.6;">
-          <h2 style="margin-bottom: 8px;">Your MatGrid sign-in code</h2>
-          <p style="margin-bottom: 16px;">Use this OTP to complete your sign-in:</p>
-          <p style="font-size: 30px; font-weight: 700; letter-spacing: 6px; margin: 12px 0;">${otp}</p>
-          <p style="font-size: 13px; color: #666;">This code expires in 10 minutes and can be used only once.</p>
-        </div>
-      `;
-
-      const emailResult = await this.emailService.sendTransactionalEmail(
-        {
-          to: emailOrPhone,
-          subject: 'Your MatGrid sign-in OTP',
-          html,
-        },
-        { event: 'signin_otp', userId: user.id },
+      const emailResult = await this.emailService.sendSignInOtpEmail(
+        emailOrPhone,
+        otp,
+        { userId: user.id },
       );
 
       otpRecord.sent = emailResult.success;

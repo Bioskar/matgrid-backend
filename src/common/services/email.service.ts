@@ -18,6 +18,16 @@ type WelcomeEmailPayload = {
   roleLabel?: string;
 };
 
+type BrandedEmailTemplateOptions = {
+  eyebrow?: string;
+  title: string;
+  intro?: string;
+  bodyHtml: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  footerNote?: string;
+};
+
 type EmailSender = {
   email: string;
   name: string;
@@ -108,9 +118,13 @@ export class EmailService {
   }
 
   async sendEmail(to: string, subject: string, text: string): Promise<boolean> {
-    const html = `<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;"><p>${this.escapeHtml(
-      text,
-    ).replace(/\n/g, '<br/>')}</p></div>`;
+    const html = this.buildBrandedEmailTemplate({
+      eyebrow: 'Notification',
+      title: subject,
+      bodyHtml: `<p style="margin:0;font-size:15px;line-height:1.7;color:#2b2b2b;">${this.escapeHtml(
+        text,
+      ).replace(/\n/g, '<br/>')}</p>`,
+    });
 
     const result = await this.sendTransactionalEmail(
       { to, subject, html },
@@ -152,20 +166,18 @@ export class EmailService {
       verificationToken,
     )}`;
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; color: #111; line-height: 1.6;">
-        <h2 style="margin-bottom: 8px;">Verify your email address</h2>
-        <p style="margin-bottom: 16px;">Please confirm your email to secure your MatGrid account.</p>
-        <p style="margin-bottom: 20px;">
-          <a href="${verificationUrl}" style="background: #E85E00; color: #fff; text-decoration: none; padding: 12px 18px; border-radius: 8px; display: inline-block;">
-            Verify Email
-          </a>
-        </p>
-        <p style="margin-bottom: 6px;">If the button does not work, use this link:</p>
-        <p style="word-break: break-all; font-size: 13px; color: #333;">${verificationUrl}</p>
-        <p style="margin-top: 20px; font-size: 13px; color: #666;">This link expires in 24 hours.</p>
-      </div>
-    `;
+    const html = this.buildBrandedEmailTemplate({
+      eyebrow: 'Security',
+      title: 'Verify your email address',
+      intro: 'Please confirm your email to secure your MatGrid account.',
+      bodyHtml: `
+        <p style="margin:0 0 6px 0;font-size:13px;color:#5e5e5e;">If the button does not work, use this link:</p>
+        <p style="margin:0;word-break:break-all;font-size:13px;color:#2f2f2f;">${this.escapeHtml(verificationUrl)}</p>
+      `,
+      ctaLabel: 'Verify Email',
+      ctaUrl: verificationUrl,
+      footerNote: 'This link expires in 24 hours.',
+    });
 
     return this.sendTransactionalEmail(
       {
@@ -235,6 +247,33 @@ export class EmailService {
         recipientName: name,
       },
       { event: 'welcome_email' },
+    );
+  }
+
+  async sendSignInOtpEmail(
+    to: string,
+    otp: string,
+    context: Record<string, unknown> = {},
+  ): Promise<{ success: boolean; provider: 'zeptomail' | 'smtp'; id?: string }> {
+    const html = this.buildBrandedEmailTemplate({
+      eyebrow: 'Security',
+      title: 'Your MatGrid sign-in code',
+      intro: 'Use this one-time code to complete your sign-in.',
+      bodyHtml: `
+        <div style="margin:12px 0 14px 0;padding:16px 18px;border-radius:12px;background:#fff8f2;border:1px solid #ffd9bf;text-align:center;">
+          <p style="margin:0;font-size:32px;line-height:1.2;font-weight:800;letter-spacing:0.34em;color:#c84f00;">${this.escapeHtml(otp)}</p>
+        </div>
+      `,
+      footerNote: 'This code expires in 10 minutes and can be used only once.',
+    });
+
+    return this.sendTransactionalEmail(
+      {
+        to,
+        subject: 'Your MatGrid sign-in OTP',
+        html,
+      },
+      { event: 'signin_otp', ...context },
     );
   }
 
@@ -474,6 +513,55 @@ export class EmailService {
     }
 
     return `${token.slice(0, 6)}...${token.slice(-4)}`;
+  }
+
+  private buildBrandedEmailTemplate(options: BrandedEmailTemplateOptions): string {
+    const eyebrow = this.escapeHtml(options.eyebrow || 'MatGrid');
+    const title = this.escapeHtml(options.title);
+    const intro = options.intro
+      ? `<p style="margin:14px 0 0 0;font-size:16px;line-height:1.65;max-width:520px;opacity:0.95;">${this.escapeHtml(options.intro)}</p>`
+      : '';
+
+    const ctaBlock =
+      options.ctaLabel && options.ctaUrl
+        ? `
+          <p style="margin:28px 0 14px 0;">
+            <a href="${options.ctaUrl}" style="background:#E85E00;color:#ffffff;text-decoration:none;padding:13px 20px;border-radius:10px;display:inline-block;font-weight:700;">
+              ${this.escapeHtml(options.ctaLabel)}
+            </a>
+          </p>
+        `
+        : '';
+
+    const ctaFallback =
+      options.ctaLabel && options.ctaUrl
+        ? `<p style="margin:0;font-size:13px;line-height:1.6;color:#6b6b6b;">If the button does not work, open this link: <span style="word-break:break-all;color:#c84f00;">${this.escapeHtml(options.ctaUrl)}</span></p>`
+        : '';
+
+    const footerNote = options.footerNote
+      ? `<p style="margin:16px 0 0 0;font-size:13px;line-height:1.6;color:#6b6b6b;">${this.escapeHtml(options.footerNote)}</p>`
+      : '';
+
+    return `
+      <div style="margin:0;padding:0;background:#f7f5f2;font-family:Arial,Helvetica,sans-serif;color:#1f1f1f;">
+        <div style="max-width:640px;margin:0 auto;padding:32px 16px;">
+          <div style="background:#ffffff;border:1px solid #ece7e2;border-radius:20px;overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,0.08);">
+            <div style="background:linear-gradient(135deg,#E85E00 0%,#ff8c39 100%);padding:32px 32px 28px 32px;color:#ffffff;">
+              <p style="margin:0 0 12px 0;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;opacity:0.9;">${eyebrow}</p>
+              <h1 style="margin:0;font-size:30px;line-height:1.15;font-weight:800;">${title}</h1>
+              ${intro}
+            </div>
+
+            <div style="padding:32px;">
+              ${options.bodyHtml}
+              ${ctaBlock}
+              ${ctaFallback}
+              ${footerNote}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   private escapeHtml(input: string): string {
