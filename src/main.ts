@@ -144,7 +144,9 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   // Serve static files from uploads directory
-  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  // Mounted under /api/v1/uploads so the reverse proxy routes it correctly
+  app.use('/api/v1/uploads', express.static(join(process.cwd(), 'uploads')));
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads'))); // legacy fallback
 
   if (process.env.SWAGGER_ENABLED !== 'false') {
     const config = new DocumentBuilder()
