@@ -631,15 +631,18 @@ export class SuppliersService {
     // Ensure supplier exists (especially for new signups)
     await this.getOrCreateSupplier(userId);
 
-    if (updateData.fullName || updateData.company || updateData.businessAddress) {
+    if (updateData.fullName || updateData.company || updateData.businessAddress || updateData.phone || updateData.phoneNumber) {
       await this.userRepository.update(userId, {
         ...(updateData.fullName && { fullName: updateData.fullName }),
         ...(updateData.company && { company: updateData.company }),
         ...(updateData.businessAddress && { businessAddress: updateData.businessAddress }),
+        ...((updateData.phone || updateData.phoneNumber) && {
+          phoneNumber: updateData.phone || updateData.phoneNumber,
+        }),
       });
     }
 
-    const { fullName, company, businessAddress, email, phone, ...supplierData } = updateData;
+    const { fullName, company, businessAddress, email, phone, phoneNumber, ...supplierData } = updateData;
     await this.supplierRepository.update({ userId }, supplierData);
 
     const updatedSupplier = await this.supplierRepository.findOne({
