@@ -14,6 +14,7 @@ import { Supplier } from '../../suppliers/entities/supplier.entity';
 import { Contractor } from '../../contractors/entities/contractor.entity';
 import {
   KycDocument,
+  DocumentType,
   VerificationStatus,
 } from '../../kyc/entities/kyc-document.entity';
 import { EscrowTransaction } from '../entities/escrow-transaction.entity';
@@ -826,43 +827,89 @@ export class AdminService {
       },
     );
 
-    // Update supplier verification status
-    const supplier = await this.supplierRepo.findOne({ where: { userId } });
-    if (supplier) {
-      supplier.verificationStatus = 'verified';
-      supplier.isActive = true;
-      await this.supplierRepo.save(supplier);
-    }
+    // Re-fetch to check which categories are now verified
+    const allDocs = await this.kycRepo.find({ where: { userId } });
+    const verifiedDocs = allDocs.filter(d => d.verificationStatus === VerificationStatus.VERIFIED);
 
-    try {
-      await this.notificationsService.createNotification({
-        userId,
-        type: NotificationType.ACCOUNT_WELCOME,
-        title: 'KYC approved',
-        message: 'Your KYC verification was successful. Your account is now fully verified.',
-        metadata: {
-          actionUrl:
-            supplier
+    const identityTypes: DocumentType[] = [DocumentType.NIN_SLIP, DocumentType.DRIVERS_LICENSE, DocumentType.VOTERS_CARD];
+    const addressTypes: DocumentType[] = [DocumentType.UTILITY_BILL, DocumentType.BANK_STATEMENT];
+    const businessTypes: DocumentType[] = [DocumentType.CAC_CERTIFICATE, DocumentType.TIN_CERTIFICATE];
+
+    const hasIdentity = verifiedDocs.some(d => identityTypes.includes(d.documentType));
+    const hasAddress = verifiedDocs.some(d => addressTypes.includes(d.documentType));
+    const hasBusiness = verifiedDocs.some(d => businessTypes.includes(d.documentType));
+
+    // Determine whether the user is a supplier to know full verification requirements
+    const supplier = await this.supplierRepo.findOne({ where: { userId } });
+    const isSupplier = !!supplier;
+
+    // For suppliers: need all 3 categories. For contractors: need identity + address.
+    const isFullyVerified = isSupplier
+      ? hasIdentity && hasAddress && hasBusiness
+      : hasIdentity && hasAddress;
+
+    if (isFullyVerified) {
+      // Activate supplier account if applicable
+      if (supplier) {
+        supplier.verificationStatus = 'verified';
+        supplier.isActive = true;
+        await this.supplierRepo.save(supplier);
+      }
+
+      try {
+        await this.notificationsService.createNotification({
+          userId,
+          type: NotificationType.ACCOUNT_WELCOME,
+          title: 'KYC approved',
+          message: 'Your KYC verification was successful. Your account is now fully verified.',
+          metadata: {
+            actionUrl: supplier
               ? '/dashboard/supplier/settings'
               : '/dashboard/contractor/profile',
-          actionLabel: 'View verification status',
-          reviewType: 'kyc',
-          status: 'verified',
-        },
-        category: 'account',
-        force: true,
-      });
-    } catch (error) {
-      this.logger.warn(
-        {
+            actionLabel: 'View verification status',
+            reviewType: 'kyc',
+            status: 'verified',
+          },
+          category: 'account',
+          force: true,
+        });
+      } catch (error) {
+        this.logger.warn(
+          { userId, error: error instanceof Error ? error.message : 'Unknown error' },
+          'Failed to dispatch KYC approval notification',
+        );
+      }
+    } else {
+      // Partial approval — document verified but full KYC not yet complete
+      const missing: string[] = [];
+      if (!hasIdentity) missing.push('Identity document');
+      if (!hasAddress) missing.push('Address document');
+      if (isSupplier && !hasBusiness) missing.push('Business document');
+
+      try {
+        await this.notificationsService.createNotification({
           userId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-        'Failed to dispatch KYC approval notification',
-      );
+          type: NotificationType.ACCOUNT_WELCOME,
+          title: 'Document verified',
+          message: `Your document has been approved. Still needed to complete KYC: ${missing.join(', ')}.`,
+          metadata: {
+            actionUrl: '/kyc/submit',
+            actionLabel: 'Upload remaining documents',
+            reviewType: 'kyc',
+            status: 'partial',
+          },
+          category: 'account',
+          force: true,
+        });
+      } catch (error) {
+        this.logger.warn(
+          { userId, error: error instanceof Error ? error.message : 'Unknown error' },
+          'Failed to dispatch partial KYC notification',
+        );
+      }
     }
 
-    this.logger.info({ userId }, 'Admin approved KYC');
+    this.logger.info({ userId, isFullyVerified }, 'Admin approved KYC documents');
     return { message: 'KYC approved successfully.' };
   }
 
