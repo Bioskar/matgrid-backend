@@ -400,6 +400,60 @@ export class KycService {
 
     await this.kycDocumentRepository.save(document);
 
+    try {
+      const readableType = document.documentType.replace(/_/g, ' ');
+      const sideLabel = document.documentSide ? ` (${document.documentSide})` : '';
+
+      if (verifyDto.status === 'verified') {
+        await this.notificationsService.createNotification({
+          userId: document.userId,
+          type: NotificationType.ACCOUNT_WELCOME,
+          title: 'KYC document approved',
+          message: `Your ${readableType}${sideLabel} has been approved.`,
+          metadata: {
+            actionUrl: '/dashboard/kyc/status',
+            actionLabel: 'View KYC status',
+            documentId: document.id,
+            documentType: document.documentType,
+            status: 'verified',
+          },
+          category: 'account',
+          force: true,
+        });
+      } else {
+        const rejectionMessage = verifyDto.reason
+          ? `Your ${readableType}${sideLabel} was rejected. Reason: ${verifyDto.reason}`
+          : `Your ${readableType}${sideLabel} was rejected. Please re-upload a clearer document.`;
+
+        await this.notificationsService.createNotification({
+          userId: document.userId,
+          type: NotificationType.ACCOUNT_WELCOME,
+          title: 'KYC document rejected',
+          message: rejectionMessage,
+          metadata: {
+            actionUrl: '/dashboard/kyc/submission',
+            actionLabel: 'Re-upload document',
+            documentId: document.id,
+            documentType: document.documentType,
+            status: 'rejected',
+            reason: verifyDto.reason || null,
+          },
+          category: 'account',
+          force: true,
+        });
+      }
+    } catch (notificationError) {
+      this.logger.warn(
+        {
+          documentId,
+          userId: document.userId,
+          status: verifyDto.status,
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+        },
+        'KYC document reviewed but notification dispatch failed',
+      );
+    }
+
     this.logger.info(
       {
         documentId,
